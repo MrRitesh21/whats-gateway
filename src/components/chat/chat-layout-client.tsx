@@ -1,12 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { ChatList } from "./chat-list";
 import { ChatWindow } from "./chat-window";
 import { MessageCircle } from "lucide-react";
 
 interface ChatLayoutClientProps {
     sessionId: string;
+    initialPhone?: string | null;
+    initialJid?: string | null;
+    initialName?: string | null;
 }
 
 interface SelectedChat {
@@ -15,9 +19,42 @@ interface SelectedChat {
     profilePic?: string | null;
 }
 
-export function ChatLayoutClient({ sessionId }: ChatLayoutClientProps) {
-    const [selectedChat, setSelectedChat] = useState<SelectedChat | null>(null);
+function resolveChat(jidParam?: string | null, phoneParam?: string | null, nameParam?: string | null): SelectedChat | null {
+    let targetJid = jidParam ? (jidParam.endsWith("@c.us") ? jidParam.replace("@c.us", "@s.whatsapp.net") : jidParam) : "";
+    if (!targetJid && phoneParam) {
+        let digits = phoneParam.replace(/\D/g, "");
+        if (digits.startsWith("0")) digits = digits.replace(/^0+/, "");
+        if (digits.length === 10 && /^[6-9]/.test(digits)) digits = "91" + digits;
+        if (digits) targetJid = `${digits}@s.whatsapp.net`;
+    }
+    if (!targetJid) return null;
+
+    const displayName = nameParam || (phoneParam ? `+${phoneParam.replace(/\D/g, "")}` : targetJid.split("@")[0]);
+    return { jid: targetJid, name: displayName, profilePic: null };
+}
+
+export function ChatLayoutClient({ sessionId, initialPhone, initialJid, initialName }: ChatLayoutClientProps) {
+    const searchParams = useSearchParams();
+
+    const [selectedChat, setSelectedChat] = useState<SelectedChat | null>(() => {
+        return resolveChat(initialJid, initialPhone, initialName);
+    });
     const [profilePicMap, setProfilePicMap] = useState<Record<string, string>>({});
+
+    // Sync when query params change via router.push(/dashboard/chat?phone=...)
+    useEffect(() => {
+        const urlJid = searchParams?.get("jid") || initialJid;
+        const urlPhone = searchParams?.get("phone") || initialPhone;
+        const urlName = searchParams?.get("name") || initialName;
+
+        const resolved = resolveChat(urlJid, urlPhone, urlName);
+        if (resolved && (!selectedChat || selectedChat.jid !== resolved.jid)) {
+            setSelectedChat({
+                ...resolved,
+                profilePic: profilePicMap[resolved.jid] || null,
+            });
+        }
+    }, [searchParams, initialJid, initialPhone, initialName]);
 
     const handleSelectChat = (jid: string, name?: string, profilePic?: string | null) => {
         const effectivePic = profilePic || profilePicMap[jid] || null;
@@ -48,6 +85,7 @@ export function ChatLayoutClient({ sessionId }: ChatLayoutClientProps) {
                     sessionId={sessionId}
                     onSelectChat={handleSelectChat}
                     selectedJid={selectedChat?.jid}
+                    selectedChatName={selectedChat?.name}
                     externalProfilePics={profilePicMap}
                 />
             </div>

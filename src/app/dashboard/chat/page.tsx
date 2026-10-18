@@ -4,8 +4,11 @@ import { ChatLayoutClient } from "@/components/chat/chat-layout-client";
 import { cookies } from "next/headers";
 import { canAccessSession } from "@/lib/api-auth";
 import { SessionGuard } from "@/components/dashboard/session-guard";
+import { Suspense } from "react";
 
-export default async function ChatPage() {
+export default async function ChatPage(props: {
+    searchParams?: Promise<{ phone?: string; jid?: string; name?: string }>;
+}) {
     const session = await auth();
 
     if (!session?.user?.id) return <div>Unauthorized</div>;
@@ -32,9 +35,19 @@ export default async function ChatPage() {
         );
     }
 
+    const sp = props.searchParams ? await props.searchParams : {};
+
     return (
         <div className="h-[calc(100dvh-6.5rem)] sm:h-[calc(100dvh-6rem)]">
-            <ChatLayoutClient key={validSessionId} sessionId={validSessionId} />
+            <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-muted-foreground">Loading chat...</div>}>
+                <ChatLayoutClient
+                    key={validSessionId}
+                    sessionId={validSessionId}
+                    initialPhone={sp.phone || null}
+                    initialJid={sp.jid || null}
+                    initialName={sp.name || null}
+                />
+            </Suspense>
         </div>
     );
 }

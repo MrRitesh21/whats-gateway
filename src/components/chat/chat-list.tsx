@@ -28,10 +28,11 @@ interface ChatListProps {
     sessionId: string;
     onSelectChat: (jid: string, name?: string, profilePic?: string | null) => void;
     selectedJid?: string;
+    selectedChatName?: string;
     externalProfilePics?: Record<string, string>;
 }
 
-export function ChatList({ sessionId, onSelectChat, selectedJid, externalProfilePics }: ChatListProps) {
+export function ChatList({ sessionId, onSelectChat, selectedJid, selectedChatName, externalProfilePics }: ChatListProps) {
     const [chats, setChats] = useState<ChatContact[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
@@ -175,6 +176,17 @@ export function ChatList({ sessionId, onSelectChat, selectedJid, externalProfile
     const filteredChats = useMemo(() => {
         let result = chats;
 
+        // If a chat is selected (e.g. opened directly from CRM) but not yet present in chats list, prepend it
+        if (selectedJid && !result.some(c => c.jid === selectedJid)) {
+            const syntheticChat: ChatContact = {
+                jid: selectedJid,
+                name: selectedChatName || selectedJid.split("@")[0],
+                notify: null,
+                profilePic: externalProfilePics?.[selectedJid] || null,
+            };
+            result = [syntheticChat, ...result];
+        }
+
         // Filter by tab
         if (activeTab === "personal") {
             result = result.filter(chat => chat.jid.endsWith("@s.whatsapp.net"));
@@ -195,7 +207,7 @@ export function ChatList({ sessionId, onSelectChat, selectedJid, externalProfile
         }
 
         return result;
-    }, [chats, searchQuery, activeTab]);
+    }, [chats, searchQuery, activeTab, selectedJid, selectedChatName, externalProfilePics]);
 
     const getContactDisplayName = (chat: ChatContact): string => {
         return chat.name || chat.notify || chat.jid.split('@')[0];

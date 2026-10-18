@@ -293,6 +293,33 @@ export default function CRMPage() {
         return [1, "...", validCurrentPage - 1, validCurrentPage, validCurrentPage + 1, "...", totalPages];
     }, [validCurrentPage, totalPages]);
 
+    // Direct 1-click navigation to WhatsApp chat window in /dashboard/chat
+    const openDirectChat = (lead: Lead) => {
+        const rawPhone = lead.phone || lead.formattedPhone;
+        if (!rawPhone) {
+            toast.error("Lead does not have a valid phone number");
+            return;
+        }
+
+        let digits = rawPhone.replace(/\D/g, "");
+        if (digits.startsWith("0")) digits = digits.replace(/^0+/, "");
+        if (digits.length === 10 && /^[6-9]/.test(digits)) {
+            digits = "91" + digits;
+        }
+        if (!digits) {
+            toast.error("Invalid phone number");
+            return;
+        }
+
+        const jid = `${digits}@s.whatsapp.net`;
+        const params = new URLSearchParams({
+            jid,
+            phone: digits,
+            name: lead.name || "",
+        });
+        router.push(`/dashboard/chat?${params.toString()}`);
+    };
+
     // Handle CSV File Selection
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -1097,11 +1124,19 @@ export default function CRMPage() {
                                                     </TableCell>
                                                     <TableCell>
                                                         <div className="font-mono text-[11px] flex items-center gap-1.5">
-                                                            <span className="text-foreground">{lead.formattedPhone}</span>
                                                             <button
-                                                                onClick={() => openQuickMessage(lead)}
-                                                                title="Send WhatsApp Message"
-                                                                className="h-6 w-6 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center hover:bg-emerald-100 transition-colors"
+                                                                type="button"
+                                                                onClick={() => openDirectChat(lead)}
+                                                                title="Open WhatsApp Chat in Chats"
+                                                                className="text-foreground hover:text-emerald-600 font-medium hover:underline text-left cursor-pointer transition-colors"
+                                                            >
+                                                                {lead.formattedPhone}
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => openDirectChat(lead)}
+                                                                title="Open WhatsApp Chat in Chats"
+                                                                className="h-6 w-6 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center hover:bg-emerald-100 hover:scale-105 active:scale-95 transition-all"
                                                             >
                                                                 <MessageSquare className="h-3.5 w-3.5" />
                                                             </button>
@@ -1162,8 +1197,18 @@ export default function CRMPage() {
                                                             <Button
                                                                 variant="ghost"
                                                                 size="sm"
-                                                                onClick={() => openQuickMessage(lead)}
+                                                                onClick={() => openDirectChat(lead)}
+                                                                title="Open WhatsApp Chat in Chats"
                                                                 className="h-7 w-7 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
+                                                            >
+                                                                <MessageSquare className="h-3.5 w-3.5" />
+                                                            </Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => openQuickMessage(lead)}
+                                                                title="Quick Template Message"
+                                                                className="h-7 w-7 p-0 text-primary hover:text-primary hover:bg-primary/10"
                                                             >
                                                                 <Send className="h-3.5 w-3.5" />
                                                             </Button>
@@ -1408,13 +1453,25 @@ export default function CRMPage() {
                                                         )}
 
                                                         <div className="font-mono text-[10px] text-muted-foreground flex items-center justify-between pt-1 border-t border-border/30">
-                                                            <span>{lead.formattedPhone}</span>
                                                             <button
+                                                                type="button"
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
-                                                                    openQuickMessage(lead);
+                                                                    openDirectChat(lead);
                                                                 }}
-                                                                className="h-5 w-5 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center hover:bg-emerald-100"
+                                                                title="Open WhatsApp Chat in Chats"
+                                                                className="hover:text-emerald-600 hover:underline cursor-pointer transition-colors text-left"
+                                                            >
+                                                                {lead.formattedPhone}
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    openDirectChat(lead);
+                                                                }}
+                                                                title="Open WhatsApp Chat in Chats"
+                                                                className="h-5 w-5 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center hover:bg-emerald-100 hover:scale-110 active:scale-95 transition-all"
                                                             >
                                                                 <MessageSquare className="h-3 w-3" />
                                                             </button>
@@ -1800,7 +1857,18 @@ export default function CRMPage() {
                             <div className="grid grid-cols-3 gap-2.5 p-3 bg-muted/40 rounded-xl border border-border/40">
                                 <div>
                                     <span className="text-muted-foreground block text-[10px]">WhatsApp</span>
-                                    <span className="font-mono font-semibold">{activeLead.formattedPhone}</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setDetailModalOpen(false);
+                                            openDirectChat(activeLead);
+                                        }}
+                                        className="font-mono font-semibold hover:text-emerald-600 hover:underline text-left cursor-pointer flex items-center gap-1.5 transition-colors"
+                                        title="Open WhatsApp Chat in Chats"
+                                    >
+                                        {activeLead.formattedPhone}
+                                        <ExternalLink className="h-3 w-3 text-emerald-600" />
+                                    </button>
                                 </div>
                                 <div>
                                     <span className="text-muted-foreground block text-[10px]">Deal Value</span>
@@ -1958,17 +2026,28 @@ export default function CRMPage() {
                         </div>
                     )}
 
-                    <DialogFooter className="gap-2 sm:gap-0">
+                    <DialogFooter className="gap-2 sm:gap-2 flex-wrap">
                         <Button
                             variant="default"
                             size="sm"
                             onClick={() => {
                                 setDetailModalOpen(false);
-                                if (activeLead) openQuickMessage(activeLead);
+                                if (activeLead) openDirectChat(activeLead);
                             }}
                             className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
                         >
-                            <MessageSquare className="h-3.5 w-3.5" /> Send WhatsApp Message
+                            <MessageSquare className="h-3.5 w-3.5" /> Open Chat in Chats
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                                setDetailModalOpen(false);
+                                if (activeLead) openQuickMessage(activeLead);
+                            }}
+                            className="gap-1.5"
+                        >
+                            <Send className="h-3.5 w-3.5" /> Quick Template
                         </Button>
                     </DialogFooter>
                 </DialogContent>
