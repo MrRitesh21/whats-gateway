@@ -92,11 +92,17 @@ export function ChatWindow({ sessionId, jid, name, profilePic, onProfilePicLoade
         setIsSyncingHistory(true);
         toast.loading("Requesting previous chats from WhatsApp phone...", { id: "sync-history" });
         try {
-            const res = await syncChatHistory(sessionId, jid);
+            const res = await syncChatHistory(sessionId, jid) as any;
             if (res.messages && res.messages.length > 0) {
                 setMessages(res.messages as any);
                 chatMessagesCache.set(jid, res.messages as any);
-                toast.success(`History synced! Total ${res.messages.length} messages loaded.`, { id: "sync-history" });
+                if (res.warning) {
+                    toast.warning(res.warning, { id: "sync-history", duration: 5000 });
+                } else {
+                    toast.success(`History synced! Total ${res.messages.length} messages loaded.`, { id: "sync-history" });
+                }
+            } else if (res.warning) {
+                toast.error(res.warning, { id: "sync-history", duration: 5000 });
             } else {
                 toast.success("Request sent to WhatsApp phone. Earlier messages will arrive shortly.", { id: "sync-history" });
             }

@@ -78,9 +78,16 @@ export async function POST(
             : Date.now();
 
         logger.info("ChatAPI", `Requesting message history for ${decodedJid} from WhatsApp phone...`);
-        await instance.socket.fetchMessageHistory(50, oldestKey as any, oldestTimestampMs);
-
-        return NextResponse.json({ status: true, message: "History fetch request sent to WhatsApp phone" });
+        try {
+            await (instance.socket as any).fetchMessageHistory(50, oldestKey as any, oldestTimestampMs);
+            return NextResponse.json({ status: true, message: "History fetch request sent to WhatsApp phone" });
+        } catch (fetchErr: any) {
+            logger.warn("ChatAPI", `fetchMessageHistory warning for ${decodedJid}:`, fetchErr?.message);
+            return NextResponse.json({
+                status: false,
+                warning: `WhatsApp phone connection is temporarily unavailable (${fetchErr?.message || "closed"}).`
+            }, { status: 200 });
+        }
     } catch (err: any) {
         logger.error("ChatAPI", "Error syncing chat history:", err);
         return NextResponse.json({ status: false, error: err.message }, { status: 500 });

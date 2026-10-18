@@ -390,8 +390,8 @@ export async function syncChatHistory(sessionId: string, jid: string) {
         }
     });
 
-    // If local instance is not connected, but DB indicates session is CONNECTED in production:
-    if (!socketReady && sessionRecord.status === "CONNECTED") {
+    // If local instance is not connected:
+    if (!socketReady) {
         const liveRenderUrl = "https://whats-gateway.onrender.com";
         const isLocal = process.env.NODE_ENV !== "production" || !process.env.RENDER;
         if (isLocal) {
@@ -404,29 +404,34 @@ export async function syncChatHistory(sessionId: string, jid: string) {
                     }
                 });
                 if (forwardRes.ok) {
-                    // Poll DB for new messages delivered by WhatsApp phone (up to 8s)
-                    for (let i = 0; i < 8; i++) {
-                        await new Promise((resolve) => setTimeout(resolve, 1000));
-                        const currentCount = await prisma.message.count({
-                            where: {
-                                sessionId: dbSessionId,
-                                remoteJid: { in: queryJids }
+                    const resJson = await forwardRes.json().catch(() => ({}));
+                    if (resJson.status) {
+                        // Poll DB for new messages delivered by WhatsApp phone (up to 8s)
+                        for (let i = 0; i < 8; i++) {
+                            await new Promise((resolve) => setTimeout(resolve, 1000));
+                            const currentCount = await prisma.message.count({
+                                where: {
+                                    sessionId: dbSessionId,
+                                    remoteJid: { in: queryJids }
+                                }
+                            });
+                            if (currentCount > initialCount) {
+                                // Extra 1.5s for remaining messages in batch to settle in DB
+                                await new Promise((resolve) => setTimeout(resolve, 1500));
+                                break;
                             }
-                        });
-                        if (currentCount > initialCount) {
-                            // Extra 1.5s for remaining messages in batch to settle in DB
-                            await new Promise((resolve) => setTimeout(resolve, 1500));
-                            break;
                         }
+                        const messages = await ChatService.getMessages(dbSessionId, jid, 500);
+                        return {
+                            success: true,
+                            messages: messages.map((msg: any) => ({
+                                ...msg,
+                                timestamp: msg.timestamp.toISOString()
+                            }))
+                        };
+                    } else if (resJson.warning) {
+                        logger.warn("Chat", "Render forwarded sync warning:", resJson.warning);
                     }
-                    const messages = await ChatService.getMessages(dbSessionId, jid, 500);
-                    return {
-                        success: true,
-                        messages: messages.map((msg: any) => ({
-                            ...msg,
-                            timestamp: msg.timestamp.toISOString()
-                        }))
-                    };
                 } else {
                     const errBody = await forwardRes.json().catch(() => ({}));
                     logger.warn("Chat", "Forwarding response not ok:", forwardRes.status, errBody);
@@ -436,20 +441,17 @@ export async function syncChatHistory(sessionId: string, jid: string) {
             }
         }
 
-        // Return up to 500 messages from DB
+        // Return up to 500 messages from DB gracefully without crashing
         const fallbackMessages = await ChatService.getMessages(dbSessionId, jid, 500);
+        const displayStatus = instance?.status || sessionRecord.status;
         return {
-            success: true,
+            success: false,
+            warning: `WhatsApp session "${sessionRecord.name || sessionId}" is not connected (Status: ${displayStatus}). Loaded ${fallbackMessages.length} saved messages. Please check Sessions / QR menu to reconnect.`,
             messages: fallbackMessages.map((msg: any) => ({
                 ...msg,
                 timestamp: msg.timestamp.toISOString()
             }))
         };
-    }
-
-    if (!instance || !instance.socket || instance.status !== "CONNECTED") {
-        const displayStatus = instance?.status || sessionRecord.status;
-        throw new Error(`WhatsApp session "${sessionRecord.name || sessionId}" is not connected (Status: ${displayStatus}). Please check Sessions / QR menu.`);
     }
 
     // Find the oldest message we have in the database for this chat
@@ -506,8 +508,16 @@ export async function syncChatHistory(sessionId: string, jid: string) {
             }))
         };
     } catch (err: any) {
-        logger.error("Chat", `Failed to fetch message history for ${jid}: ${err?.message}`);
-        throw new Error(err?.message || "Failed to sync previous messages from WhatsApp");
+        logger.warn("Chat", `Could not fetch earlier history from WhatsApp phone for ${jid}: ${err?.message}`);
+        const messages = await ChatService.getMessages(dbSessionId, jid, 500);
+        return {
+            success: false,
+            warning: `WhatsApp phone connection is temporarily unavailable (${err?.message || "timeout"}). Loaded ${messages.length} saved messages.`,
+            messages: messages.map((msg: any) => ({
+                ...msg,
+                timestamp: msg.timestamp.toISOString()
+            }))
+        };
     }
 }
 
