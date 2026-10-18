@@ -247,9 +247,9 @@ export async function getAccessibleSessions(userId: string, userRole: string) {
 
     if (sharedAccess.length === 0) return ownedSessions;
 
-    const sharedSessionIds = sharedAccess.map(a => a.sessionId);
-    const ownedIds = new Set(ownedSessions.map(s => s.id));
-    const missingIds = sharedSessionIds.filter(id => !ownedIds.has(id));
+    const sharedSessionIds = sharedAccess.map((a: { sessionId: string }) => a.sessionId);
+    const ownedIds = new Set(ownedSessions.map((s: { id: string }) => s.id));
+    const missingIds = sharedSessionIds.filter((id: string) => !ownedIds.has(id));
 
     if (missingIds.length === 0) return ownedSessions;
 
