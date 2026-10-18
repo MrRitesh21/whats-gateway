@@ -126,7 +126,19 @@ export class WhatsAppInstance {
             },
             browser: ["Ubuntu", "Chrome", "20.0.04"],
             markOnlineOnConnect: botConfig?.alwaysOnline ?? true,
-            syncFullHistory: false, // Use partial sync only
+            syncFullHistory: true, // Enable full WhatsApp chat history sync
+            getMessage: async (key) => {
+                if (key?.id) {
+                    const msg = await prisma.message.findFirst({
+                        where: { keyId: key.id },
+                        select: { content: true }
+                    });
+                    if (msg?.content) {
+                        return { conversation: msg.content };
+                    }
+                }
+                return undefined;
+            },
         });
 
         // Apply Anti-Spam Wrapper to sendMessage

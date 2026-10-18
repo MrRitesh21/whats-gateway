@@ -4,6 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { ChatService } from "@/modules/whatsapp/chat.service";
 import { getAuthenticatedUserForAction } from "@/lib/server-action-auth";
 import { canAccessSession } from "@/lib/api-auth";
+import { waManager } from "@/modules/whatsapp/manager";
+import { normalizeJid } from "@/lib/jid-utils";
+import { executeSmartChat } from "@/lib/ai-gateway/gateway";
+import { logger } from "@/lib/logger";
 
 // In-memory cache for mapping Baileys sessionId string to DB Session CUID
 const sessionDbIdCache = new Map<string, { id: string; expires: number }>();
@@ -271,5 +275,201 @@ export async function getBatchProfilePictures(sessionId: string, jids: string[])
         return {};
     }
 }
+
+/**
+ * On-demand sync of earlier message history directly from the linked WhatsApp phone
+ */
+export async function syncChatHistory(sessionId: string, jid: string) {
+    const user = await getAuthenticatedUserForAction();
+    if (!user) throw new Error("Unauthorized");
+
+    const canAccess = await canAccessSession(user.id, user.role, sessionId);
+    if (!canAccess) throw new Error("Forbidden");
+
+    const dbSessionId = await getDbSessionId(sessionId);
+    if (!dbSessionId) throw new Error("Session not found");
+
+    const instance = waManager.getInstance(sessionId);
+    if (!instance || !instance.socket) {
+        throw new Error("WhatsApp session is not active or connected");
+    }
+
+    const normalizedJid = normalizeJid(jid);
+
+    // Find the oldest message we have in the database for this chat
+    const oldestMessage = await prisma.message.findFirst({
+        where: {
+            sessionId: dbSessionId,
+            OR: [
+                { remoteJid: jid },
+                { remoteJid: normalizedJid }
+            ]
+        },
+        orderBy: { timestamp: "asc" },
+        select: { keyId: true, fromMe: true, timestamp: true }
+    });
+
+    const oldestKey = oldestMessage ? {
+        remoteJid: jid,
+        fromMe: oldestMessage.fromMe,
+        id: oldestMessage.keyId
+    } : {
+        remoteJid: jid,
+        fromMe: false,
+        id: "0"
+    };
+
+    const oldestTimestampMs = oldestMessage
+        ? oldestMessage.timestamp.getTime()
+        : Date.now();
+
+    try {
+        logger.info("Chat", `Requesting earlier message history for ${jid} from WhatsApp phone...`);
+        // Request history from WhatsApp phone (50 messages per query)
+        await instance.socket.fetchMessageHistory(50, oldestKey as any, oldestTimestampMs);
+        
+        // Wait 2.5 seconds for WhatsApp phone to deliver the peer data sync
+        await new Promise((resolve) => setTimeout(resolve, 2500));
+
+        // Return the fresh message list
+        const messages = await ChatService.getMessages(dbSessionId, jid, 100);
+        return {
+            success: true,
+            messages: messages.map(msg => ({
+                ...msg,
+                timestamp: msg.timestamp.toISOString()
+            }))
+        };
+    } catch (err: any) {
+        logger.error("Chat", `Failed to fetch message history for ${jid}: ${err?.message}`);
+        throw new Error(err?.message || "Failed to sync previous messages from WhatsApp");
+    }
+}
+
+export interface SuggestedRepliesResult {
+    analysis: string;
+    suggestions: string[];
+}
+
+/**
+ * AI-powered chat reply suggestions:
+ * Analyzes recent chat messages + business RAG knowledge base to suggest 3 contextual replies.
+ */
+export async function suggestChatReplies(sessionId: string, jid: string): Promise<SuggestedRepliesResult> {
+    const user = await getAuthenticatedUserForAction();
+    if (!user) throw new Error("Unauthorized");
+
+    const canAccess = await canAccessSession(user.id, user.role, sessionId);
+    if (!canAccess) throw new Error("Forbidden");
+
+    const dbSessionId = await getDbSessionId(sessionId);
+    if (!dbSessionId) throw new Error("Session not found");
+
+    const normalizedJid = normalizeJid(jid);
+
+    // 1. Fetch recent messages for this conversation (up to 10)
+    const recentMessages = await prisma.message.findMany({
+        where: {
+            sessionId: dbSessionId,
+            OR: [
+                { remoteJid: jid },
+                { remoteJid: normalizedJid }
+            ]
+        },
+        orderBy: { timestamp: "desc" },
+        take: 10,
+        select: {
+            fromMe: true,
+            content: true,
+            type: true,
+            timestamp: true,
+            pushName: true
+        }
+    });
+
+    if (recentMessages.length === 0) {
+        return {
+            analysis: "New conversation initiated",
+            suggestions: [
+                "Namaste! Welcome to our clinic. How can I assist you today?",
+                "Hello! Thanks for reaching out. What can we help you with?",
+                "Hi! Would you like to know more about our services or book a quick consultation/demo?"
+            ]
+        };
+    }
+
+    // Chronological order for prompt
+    const chronological = recentMessages.slice().reverse();
+    const transcript = chronological
+        .filter(m => m.content && m.content.trim())
+        .map(m => `${m.fromMe ? "Business Agent" : (m.pushName || "Customer")}: ${m.content}`)
+        .join("\n");
+
+    const latestCustomerMsg = chronological
+        .slice()
+        .reverse()
+        .find(m => !m.fromMe && m.content && m.content.trim())?.content || chronological[chronological.length - 1]?.content || "Inquiry";
+
+    try {
+        const aiResult = await executeSmartChat({
+            question: `Analyze this WhatsApp conversation and suggest 3 contextual replies.\n\nLatest Customer Message: "${latestCustomerMsg}"\n\nRecent Conversation Transcript:\n${transcript}`,
+            useRAG: true,
+            customSystemPrompt: `You are an AI sales & customer support copilot for our WhatsApp business.
+Analyze the customer's message and the conversation context. Generate exactly 3 short, natural, high-converting suggested replies that the human agent can send on WhatsApp.
+Option 1: Quick & Direct (1 sentence, directly answering the question)
+Option 2: Value-focused & Informative (1-2 sentences with benefits/pricing from knowledge base)
+Option 3: Action-Oriented (1-2 sentences offering a demo, consultation, or next step)
+
+Language & Tone:
+- Match the customer's language and style (if they used Hinglish, reply in friendly Hinglish; if Hindi, reply in Hindi; if English, reply in English).
+- Strictly adhere to our business information and pricing. NEVER invent lower prices or fake plans.
+- Keep each reply concise (under 25 words).
+
+OUTPUT REQUIREMENT:
+Output ONLY valid JSON with this exact structure:
+{
+  "analysis": "1 short sentence describing customer intent and sentiment",
+  "suggestions": [
+    "Option 1 text",
+    "Option 2 text",
+    "Option 3 text"
+  ]
+}`
+        });
+
+        const raw = aiResult.answer.trim();
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            if (Array.isArray(parsed.suggestions) && parsed.suggestions.length > 0) {
+                return {
+                    analysis: parsed.analysis || "Customer inquiry analyzed",
+                    suggestions: parsed.suggestions.map((s: any) => String(s).trim()).filter(Boolean).slice(0, 3)
+                };
+            }
+        }
+
+        // Fallback if model didn't return valid JSON array
+        return {
+            analysis: "Contextual suggestion ready",
+            suggestions: [
+                raw.slice(0, 150),
+                "Ji bilkul, iske baare mein main aapko poori details provide kar sakta hoon.",
+                "Kya aap ek quick demo schedule karna chahenge jisme hum aapko poora workflow dikha sakein?"
+            ]
+        };
+    } catch (err: any) {
+        logger.warn("Chat", "AI reply suggestion fallback due to error:", err?.message);
+        return {
+            analysis: "Standard business responses",
+            suggestions: [
+                "Ji bilkul, main isme aapki poori madad kar sakta hoon. Kripya thoda aur detail batayein?",
+                "Hamare Starter plan ₹1,499/month se shuru hota hai jisme sabhi primary features shamil hain.",
+                "Kya aap convenient time bata sakte hain taaki hum aapke liye ek quick live demo schedule kar sakein?"
+            ]
+        };
+    }
+}
+
 
 

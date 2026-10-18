@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, Paperclip, ArrowLeft, Mic, Trash2, Loader2, Maximize2, MessageCircle } from "lucide-react";
+import { Send, Paperclip, ArrowLeft, Mic, Trash2, Loader2, Maximize2, MessageCircle, Sparkles, History, RotateCw, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Image as ImageIcon, FileText, Music, Sticker as StickerIcon, Video, Download } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { createAppSocket } from "@/lib/socket-client";
 import type { Socket } from "socket.io-client";
 import { toast } from "sonner";
-import { getChatMessages, sendChatMessage, sendMediaMessage, getContactProfilePic } from "@/app/dashboard/chat/actions";
+import { getChatMessages, sendChatMessage, sendMediaMessage, getContactProfilePic, syncChatHistory, suggestChatReplies } from "@/app/dashboard/chat/actions";
 import { ChatAudioPlayer } from "./chat-audio-player";
 
 interface Message {
@@ -58,6 +58,13 @@ export function ChatWindow({ sessionId, jid, name, profilePic, onProfilePicLoade
     const [avatarUrl, setAvatarUrl] = useState<string | null>(profilePic || null);
     const [previewImage, setPreviewImage] = useState<ImagePreviewModal | null>(null);
 
+    // History sync & AI reply states
+    const [isSyncingHistory, setIsSyncingHistory] = useState(false);
+    const [isGeneratingAiReply, setIsGeneratingAiReply] = useState(false);
+    const [showAiSuggestions, setShowAiSuggestions] = useState(false);
+    const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
+    const [aiAnalysis, setAiAnalysis] = useState<string>("");
+
     // Voice message recording states
     const [isRecording, setIsRecording] = useState(false);
     const [recordingDuration, setRecordingDuration] = useState(0);
@@ -70,6 +77,62 @@ export function ChatWindow({ sessionId, jid, name, profilePic, onProfilePicLoade
     const scrollToBottom = (smooth = true) => {
         if (scrollRef.current) {
             scrollRef.current.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "end" });
+        }
+    };
+
+    // Reset AI suggestions when switching chats
+    useEffect(() => {
+        setShowAiSuggestions(false);
+        setAiSuggestions([]);
+        setAiAnalysis("");
+    }, [jid]);
+
+    const handleSyncHistory = async () => {
+        if (isSyncingHistory) return;
+        setIsSyncingHistory(true);
+        toast.loading("Requesting previous chats from WhatsApp phone...", { id: "sync-history" });
+        try {
+            const res = await syncChatHistory(sessionId, jid);
+            if (res.messages && res.messages.length > 0) {
+                setMessages(res.messages as any);
+                chatMessagesCache.set(jid, res.messages as any);
+                toast.success(`History synced! Total ${res.messages.length} messages loaded.`, { id: "sync-history" });
+            } else {
+                toast.success("Request sent to WhatsApp phone. Earlier messages will arrive shortly.", { id: "sync-history" });
+            }
+        } catch (err: any) {
+            console.error("Failed to sync chat history:", err);
+            toast.error(err.message || "Failed to sync previous messages from WhatsApp", { id: "sync-history" });
+        } finally {
+            setIsSyncingHistory(false);
+        }
+    };
+
+    const handleFetchAiSuggestions = async () => {
+        setIsGeneratingAiReply(true);
+        setShowAiSuggestions(true);
+        try {
+            const res = await suggestChatReplies(sessionId, jid);
+            setAiSuggestions(res.suggestions || []);
+            setAiAnalysis(res.analysis || "");
+        } catch (err: any) {
+            console.error("Failed to generate AI replies:", err);
+            toast.error("Failed to generate AI reply suggestions");
+        } finally {
+            setIsGeneratingAiReply(false);
+        }
+    };
+
+    const handleApplyAiSuggestion = (suggestion: string) => {
+        setNewMessage(suggestion);
+        toast.info("Reply inserted into input! Edit or press send.");
+    };
+
+    const handleToggleAiSuggestions = () => {
+        if (!showAiSuggestions) {
+            handleFetchAiSuggestions();
+        } else {
+            setShowAiSuggestions(false);
         }
     };
 
@@ -567,6 +630,38 @@ export function ChatWindow({ sessionId, jid, name, profilePic, onProfilePicLoade
                     <h3 className="text-sm font-semibold text-foreground truncate">{displayName}</h3>
                     <p className="text-[10px] text-muted-foreground truncate">{jid}</p>
                 </div>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={isSyncingHistory}
+                        onClick={handleSyncHistory}
+                        className="h-8 gap-1.5 text-xs font-medium border-border/50 hover:bg-muted/80 transition-colors"
+                        title="Fetch previous chats before session connected"
+                    >
+                        {isSyncingHistory ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                        ) : (
+                            <History className="h-3.5 w-3.5 text-muted-foreground" />
+                        )}
+                        <span className="hidden sm:inline">Sync History</span>
+                    </Button>
+                    <Button
+                        variant={showAiSuggestions ? "secondary" : "outline"}
+                        size="sm"
+                        disabled={isGeneratingAiReply}
+                        onClick={handleFetchAiSuggestions}
+                        className="h-8 gap-1.5 text-xs font-medium border-border/50 bg-gradient-to-r from-purple-500/10 to-blue-500/10 hover:from-purple-500/20 hover:to-blue-500/20 text-purple-600 dark:text-purple-400"
+                        title="Analyze chat with AI & get suggested replies"
+                    >
+                        {isGeneratingAiReply ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-purple-500" />
+                        ) : (
+                            <Sparkles className="h-3.5 w-3.5 text-purple-500" />
+                        )}
+                        <span className="hidden sm:inline">AI Reply</span>
+                    </Button>
+                </div>
             </div>
 
             {/* Messages Area */}
@@ -606,7 +701,32 @@ export function ChatWindow({ sessionId, jid, name, profilePic, onProfilePicLoade
                             </div>
                         </div>
                     ) : (
-                        messages.map((msg, idx) => {
+                        <>
+                            {/* Top load older history button */}
+                            {messages.length > 0 && (
+                                <div className="flex justify-center pb-2 pt-1">
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        disabled={isSyncingHistory}
+                                        onClick={handleSyncHistory}
+                                        className="h-7 px-3 text-[11px] font-medium text-muted-foreground hover:text-foreground bg-background/60 hover:bg-background/90 backdrop-blur-sm border border-border/30 rounded-full gap-1.5 shadow-xs transition-colors"
+                                    >
+                                        {isSyncingHistory ? (
+                                            <>
+                                                <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                                                <span>Syncing earlier messages from WhatsApp...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <History className="h-3 w-3 text-muted-foreground" />
+                                                <span>Load Previous Chats from WhatsApp</span>
+                                            </>
+                                        )}
+                                    </Button>
+                                </div>
+                            )}
+                            {messages.map((msg, idx) => {
                             // Show date separator
                             const showDate = idx === 0 || getDateLabel(msg.timestamp) !== getDateLabel(messages[idx - 1].timestamp);
 
@@ -766,7 +886,8 @@ export function ChatWindow({ sessionId, jid, name, profilePic, onProfilePicLoade
                                     </div>
                                 </div>
                             );
-                        })
+                        })}
+                        </>
                     )}
                     <div ref={scrollRef} />
                 </div>
@@ -774,6 +895,73 @@ export function ChatWindow({ sessionId, jid, name, profilePic, onProfilePicLoade
 
             {/* Input Area */}
             <div className="px-3 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] bg-background/90 backdrop-blur-md border-t flex-shrink-0">
+                {/* AI Smart Suggestions Bar */}
+                {showAiSuggestions && (
+                    <div className="max-w-3xl mx-auto mb-2.5 p-2.5 rounded-xl bg-gradient-to-r from-purple-500/10 via-indigo-500/5 to-primary/10 border border-purple-500/20 backdrop-blur-md animate-in slide-in-from-bottom-2 duration-200">
+                        <div className="flex items-center justify-between gap-2 mb-1.5 px-1">
+                            <div className="flex items-center gap-1.5 text-xs font-semibold text-purple-700 dark:text-purple-300">
+                                <Sparkles className="h-3.5 w-3.5 text-purple-500" />
+                                <span>AI Suggested Replies</span>
+                                {aiAnalysis && (
+                                    <span className="text-[10px] font-normal text-muted-foreground truncate hidden sm:inline">
+                                        • {aiAnalysis}
+                                    </span>
+                                )}
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={handleFetchAiSuggestions}
+                                    disabled={isGeneratingAiReply}
+                                    className="h-6 w-6 rounded-full text-muted-foreground hover:text-foreground"
+                                    title="Regenerate suggestions"
+                                >
+                                    <RotateCw className={cn("h-3 w-3", isGeneratingAiReply && "animate-spin")} />
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => setShowAiSuggestions(false)}
+                                    className="h-6 w-6 rounded-full text-muted-foreground hover:text-foreground"
+                                    title="Close suggestions"
+                                >
+                                    <X className="h-3 w-3" />
+                                </Button>
+                            </div>
+                        </div>
+
+                        {isGeneratingAiReply ? (
+                            <div className="flex items-center justify-center py-2 text-xs text-muted-foreground gap-2">
+                                <Loader2 className="h-3.5 w-3.5 animate-spin text-purple-500" />
+                                <span>Analyzing conversation & generating replies...</span>
+                            </div>
+                        ) : aiSuggestions.length > 0 ? (
+                            <div className="flex flex-wrap gap-1.5">
+                                {aiSuggestions.map((suggestion, i) => (
+                                    <button
+                                        key={i}
+                                        type="button"
+                                        onClick={() => handleApplyAiSuggestion(suggestion)}
+                                        className="group text-left text-xs bg-background/90 hover:bg-purple-600 hover:text-white border border-border/40 hover:border-purple-600 rounded-lg px-2.5 py-1.5 transition-all duration-150 shadow-xs flex items-center gap-1.5 cursor-pointer"
+                                        title="Click to insert into message"
+                                    >
+                                        <span className="font-semibold text-[10px] px-1 py-0.2 rounded bg-purple-500/15 group-hover:bg-white/20 text-purple-600 dark:text-purple-300 group-hover:text-white">
+                                            {i === 0 ? "⚡ Direct" : i === 1 ? "💼 Details" : "🎯 Next Step"}
+                                        </span>
+                                        <span className="truncate max-w-[280px] sm:max-w-md">{suggestion}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-center py-1 text-xs text-muted-foreground">
+                                No suggestions generated yet. Click reload to try again.
+                            </div>
+                        )}
+                    </div>
+                )}
                 <div className="flex items-center gap-1.5 sm:gap-2 max-w-3xl mx-auto">
                     <input
                         type="file"
@@ -877,6 +1065,26 @@ export function ChatWindow({ sessionId, jid, name, profilePic, onProfilePicLoade
                                 }}
                                 className="flex-1 h-9 rounded-full bg-muted/40 border-border/30 text-sm focus-visible:ring-1"
                             />
+
+                            {/* AI Suggest Button in Input Row */}
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={handleToggleAiSuggestions}
+                                disabled={isGeneratingAiReply}
+                                className={cn(
+                                    "h-9 w-9 rounded-full flex-shrink-0 transition-colors",
+                                    showAiSuggestions ? "bg-purple-500/15 text-purple-600 dark:text-purple-400" : "text-muted-foreground hover:text-purple-600 hover:bg-purple-500/10"
+                                )}
+                                title="AI Reply Suggestions"
+                            >
+                                {isGeneratingAiReply ? (
+                                    <Loader2 className="h-4.5 w-4.5 animate-spin text-purple-500" />
+                                ) : (
+                                    <Sparkles className="h-4.5 w-4.5" />
+                                )}
+                            </Button>
 
                             {/* Voice Record Button */}
                             <Button

@@ -121,22 +121,41 @@ export const bindSessionStore = (sock: WASocket, sessionId: string, io: Server |
             dbSessionId = session.id;
         }
 
-        // Process only the most recent 20 messages to conserve memory on 512MB RAM
+        // Process history messages in batches without dropping older chats
         if (messages && messages.length > 0 && dbSessionId) {
-            const recentMessages = messages.slice(0, 20);
-            const finalDbSessionId = dbSessionId; // Capture non-null value for closure
-            logger.info("Store", `Processing ${recentMessages.length} of ${messages.length} messages...`);
+            // Process up to 500 history messages safely
+            const maxHistory = 500;
+            const messagesToProcess = messages.length > maxHistory
+                ? messages.slice(messages.length - maxHistory)
+                : messages;
+
+            const finalDbSessionId = dbSessionId;
+            logger.info("Store", `Processing ${messagesToProcess.length} history messages (total received: ${messages.length})...`);
             
-            // Process in small batches of 5 with delay
-            for (let i = 0; i < recentMessages.length; i += 5) {
-                const batch = recentMessages.slice(i, i + 5);
-                await Promise.allSettled(
-                    batch.map(msg => processAndSaveMessage(msg, finalDbSessionId, sessionId, false, sock).catch(() => {}))
+            const processedMessages: any[] = [];
+            // Process in batches of 15 with 60ms delay to keep CPU/RAM minimal on 512MB
+            for (let i = 0; i < messagesToProcess.length; i += 15) {
+                const batch = messagesToProcess.slice(i, i + 15);
+                const results = await Promise.allSettled(
+                    batch.map(msg => processAndSaveMessage(msg, finalDbSessionId, sessionId, false, sock, undefined, true).catch(() => null))
                 );
-                // 200ms delay between batches
-                await new Promise(r => setTimeout(r, 200));
+                results.forEach(res => {
+                    if (res.status === "fulfilled" && res.value) {
+                        processedMessages.push(res.value);
+                    }
+                });
+                await new Promise(r => setTimeout(r, 60));
             }
-            logger.info("Store", `History sync complete: ${recentMessages.length} messages processed`);
+            logger.info("Store", `History sync complete: ${processedMessages.length} messages saved`);
+
+            // Emit to socket room so UI updates in real-time
+            if (processedMessages.length > 0) {
+                const serialized = processedMessages.map((m: any) => ({
+                    ...m,
+                    timestamp: m.timestamp instanceof Date ? m.timestamp.toISOString() : m.timestamp
+                }));
+                io?.to(sessionId).emit('message.update', serialized);
+            }
         }
 
         // Note: Contacts and Chats are synced by src/modules/whatsapp/store/contacts.ts
@@ -374,7 +393,8 @@ async function processAndSaveMessage(
     sessionId: string,
     triggerWebhook: boolean,
     sock?: WASocket,
-    config?: any
+    config?: any,
+    skipMediaDownload: boolean = false
 ) {
     const keyId = msg.key.id;
     const remoteJid = msg.key.remoteJid;
@@ -567,12 +587,14 @@ async function processAndSaveMessage(
         senderJid = await resolveToPhoneJid(senderJid, dbSessionId, remoteJidAlt);
     }
 
-    // Download Media First (to save URL to DB)
+    // Download Media First (to save URL to DB) - skip during history sync to avoid memory pressure
     let fileUrl: string | null = null;
-    try {
-        fileUrl = await downloadAndSaveMedia(msg, sessionId);
-    } catch (e) {
-        logger.error("Store", "Error downloading media in store", e);
+    if (!skipMediaDownload) {
+        try {
+            fileUrl = await downloadAndSaveMedia(msg, sessionId);
+        } catch (e) {
+            logger.error("Store", "Error downloading media in store", e);
+        }
     }
 
     try {
