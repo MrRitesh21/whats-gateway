@@ -162,7 +162,15 @@ app.prepare().then(() => {
   const shutdown = async (signal: string) => {
     if (isShuttingDown) return;
     isShuttingDown = true;
+    (global as any).isShuttingDown = true;
     logger.info("Server", `Received ${signal}, shutting down gracefully...`);
+
+    // Gracefully close WhatsApp sockets so redeploys don't trigger disconnect or wipe authState
+    try {
+      await waManager.shutdownAll();
+    } catch (e) {
+      logger.error("Server", "Error during waManager.shutdownAll():", e);
+    }
 
     // Stop accepting new connections
     server.close(() => {

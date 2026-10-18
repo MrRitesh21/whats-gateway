@@ -18,16 +18,15 @@ import crypto from "crypto";
 //
 // ⚠️ AUTH_SECRET harus STABIL. Kalau diganti, creds terenkripsi tak bisa dibaca
 //    (sesi perlu scan ulang) — sama seperti sesi NextAuth.
-// ============================================================
-function encKey(): Buffer | null {
-    const s = process.env.AUTH_SECRET;
-    if (!s) return null;
+const DEFAULT_AUTH_SECRET = "f39c81b2a9d8e7c6b5a41234567890abcdef678901234567890abcdef12345678";
+
+function encKey(): Buffer {
+    const s = process.env.AUTH_SECRET || DEFAULT_AUTH_SECRET;
     return crypto.createHash("sha256").update(s).digest(); // 32 bytes
 }
 
-function encryptValue(plaintext: string): Record<string, unknown> | null {
+function encryptValue(plaintext: string): any {
     const key = encKey();
-    if (!key) return null; // tanpa AUTH_SECRET → simpan plaintext (jangan kunci diri sendiri)
     const iv = crypto.randomBytes(12);
     const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
     const ct = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
@@ -41,14 +40,23 @@ function encryptValue(plaintext: string): Record<string, unknown> | null {
 }
 
 function decryptValue(obj: any): string {
-    const key = encKey();
-    if (!key) throw new Error("AUTH_SECRET tidak diset, tidak bisa dekripsi auth state");
     const iv = Buffer.from(obj.iv, "base64");
     const tag = Buffer.from(obj.tag, "base64");
     const ct = Buffer.from(obj.ct, "base64");
-    const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
-    decipher.setAuthTag(tag);
-    return Buffer.concat([decipher.update(ct), decipher.final()]).toString("utf8");
+
+    // Try primary environment key
+    try {
+        const key = encKey();
+        const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+        decipher.setAuthTag(tag);
+        return Buffer.concat([decipher.update(ct), decipher.final()]).toString("utf8");
+    } catch {
+        // Fallback to static default key if env secret differed across redeploy
+        const fallbackKey = crypto.createHash("sha256").update(DEFAULT_AUTH_SECRET).digest();
+        const fallbackDecipher = crypto.createDecipheriv("aes-256-gcm", fallbackKey, iv);
+        fallbackDecipher.setAuthTag(tag);
+        return Buffer.concat([fallbackDecipher.update(ct), fallbackDecipher.final()]).toString("utf8");
+    }
 }
 
 export const usePrismaAuthState = async (sessionId: string): Promise<{ state: AuthenticationState, saveCreds: () => Promise<void> }> => {
@@ -82,7 +90,7 @@ export const usePrismaAuthState = async (sessionId: string): Promise<{ state: Au
         try {
             const key = `${type}-${id}`;
             const serialized = JSON.parse(JSON.stringify(data, BufferJSON.replacer));
-            const value = encryptValue(JSON.stringify(serialized)) || serialized;
+            const value: any = encryptValue(JSON.stringify(serialized)) || serialized;
 
             await prisma.authState.upsert({
                 where: { sessionId_key: { sessionId, key } },

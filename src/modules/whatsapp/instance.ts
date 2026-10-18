@@ -36,6 +36,7 @@ export class WhatsAppInstance {
     private reconnectAttempts: number = 0;
 
     isStopped: boolean = false;
+    isShuttingDown: boolean = false;
 
     // Watchdog support:
     // - autoReconnect: dimatikan saat sesi diambil alih koneksi lain (replaced)
@@ -183,10 +184,26 @@ export class WhatsAppInstance {
             }
 
             if (connection === "close") {
+                // If server is shutting down (e.g. Render redeploy / restart),
+                // DO NOT touch DB, DO NOT delete credentials, DO NOT mark as LOGGED_OUT.
+                if (this.isShuttingDown || (global as any).isShuttingDown) {
+                    logger.info("Instance", `Server shutting down: preserving session ${this.sessionId} credentials.`);
+                    if (this.groupSyncInterval) {
+                        clearInterval(this.groupSyncInterval);
+                        this.groupSyncInterval = null;
+                    }
+                    if (this.reconnectTimer) {
+                        clearTimeout(this.reconnectTimer);
+                        this.reconnectTimer = null;
+                    }
+                    this.socket = null;
+                    return;
+                }
+
                 const code = (lastDisconnect?.error as any)?.output?.statusCode;
                 const isLoggedOut = code === DisconnectReason.loggedOut;
                 // connectionReplaced (440): sesi diambil alih device/instance LAIN
-                // (mis. app dibuka di tempat lain, atau 2 server pakai sesi yang sama).
+                // (mis. new container during redeploy, atau app dibuka di tempat lain).
                 const isReplaced = code === DisconnectReason.connectionReplaced;
 
                 // Stop the periodic group sync interval
@@ -195,8 +212,16 @@ export class WhatsAppInstance {
                     this.groupSyncInterval = null;
                 }
 
+                // If connection was replaced by a new container or instance,
+                // do NOT touch DB status or delete credentials!
+                if (isReplaced) {
+                    this.autoReconnect = false;
+                    logger.warn("Instance", `Session ${this.sessionId} replaced by another container/connection. Socket closed, preserving DB state.`);
+                    this.socket = null;
+                    return;
+                }
+
                 // Only reconnect if NOT logged out, NOT replaced, AND NOT explicitly stopped.
-                // Reconnect saat "replaced" = perang koneksi (konek-disconnect terus) → jangan.
                 const shouldReconnect = !isLoggedOut && !isReplaced && !this.isStopped;
 
                 // Determine status based on reason
@@ -225,7 +250,6 @@ export class WhatsAppInstance {
 
                 if (shouldReconnect) {
                     // Reconnect dengan jeda + backoff biar gak loop kenceng
-                    // (immediate reconnect = rate-limit dari server = putus terus).
                     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
                     const delay = Math.min(30000, 3000 * (this.reconnectAttempts + 1));
                     this.reconnectAttempts++;
@@ -236,31 +260,14 @@ export class WhatsAppInstance {
                         this.init().catch(e => logger.error("Instance", "Reconnect gagal:", e));
                     }, delay);
                 } else if (isLoggedOut) {
-                    // Explicit logout: delete credentials
-                    logger.info("Instance", `Session ${this.sessionId} logged out. Deleting credentials...`);
-                    try {
-                        await prisma.$transaction([
-                            prisma.session.update({
-                                where: { sessionId: this.sessionId },
-                                data: { status: "LOGGED_OUT", qr: null }
-                            }),
-                            prisma.authState.deleteMany({
-                                where: { sessionId: this.sessionId }
-                            })
-                        ]);
-                    } catch (e) { /* ignore */ }
+                    // Logged out: update status in DB, but DO NOT delete credentials from authState.
+                    // This protects against accidental credential loss from transient 401s or redeploys.
+                    logger.warn("Instance", `Session ${this.sessionId} logged out from WhatsApp. Credentials preserved in DB.`);
                     this.socket = null;
-                    this.config = {}; // Clear config cache
-                    logger.success("Instance", `Session ${this.sessionId} credentials deleted.`);
+                    this.config = {};
                 } else if (this.isStopped) {
                     // Stopped: preserve credentials for future restart
                     logger.warn("Instance", `Session ${this.sessionId} stopped. Credentials preserved for auto-login.`);
-                    this.socket = null;
-                } else if (isReplaced) {
-                    // Sesi diambil alih koneksi lain. JANGAN reconnect (hindari perang koneksi).
-                    // Credential TIDAK dihapus — user bisa Start lagi manual kalau memang mau pindah ke sini.
-                    this.autoReconnect = false; // watchdog juga tidak boleh reconnect otomatis
-                    logger.warn("Instance", `Session ${this.sessionId} digantikan koneksi lain (connectionReplaced). Reconnect dihentikan. Pastikan sesi WhatsApp ini tidak dipakai di tempat lain (mis. server lokal + Railway bersamaan), lalu Start ulang bila perlu.`);
                     this.socket = null;
                 }
             }

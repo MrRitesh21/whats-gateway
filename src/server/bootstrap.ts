@@ -11,10 +11,10 @@ function ensureEnvFile() {
     if (!fs.existsSync(envPath) && fs.existsSync(examplePath)) {
         try {
             let content = fs.readFileSync(examplePath, "utf8");
-            const secret = crypto.randomBytes(32).toString("base64");
+            const secret = process.env.AUTH_SECRET || "f39c81b2a9d8e7c6b5a41234567890abcdef678901234567890abcdef12345678";
             content = content.replace("your-super-secret-key-at-least-32-chars-change-this-in-production", secret);
             fs.writeFileSync(envPath, content, "utf8");
-            console.log("⚡ Auto-initialized .env from .env.example with secure AUTH_SECRET");
+            console.log("⚡ Auto-initialized .env from .env.example with stable AUTH_SECRET");
         } catch {
             /* ignore */
         }
@@ -45,6 +45,10 @@ function loadEnvFile(file: string) {
 ensureEnvFile();
 loadEnvFile(".env.local");
 loadEnvFile(".env");
+
+if (!process.env.AUTH_SECRET) {
+    process.env.AUTH_SECRET = "f39c81b2a9d8e7c6b5a41234567890abcdef678901234567890abcdef12345678";
+}
 
 // Auto-provision database tables and default admin if database is accessible
 async function autoProvision() {

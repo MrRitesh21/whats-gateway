@@ -34,29 +34,68 @@ export class WhatsAppManager {
             logger.warn("Manager", "System License required. Sockets will not load until activated at /activate");
             return;
         }
-        // Jangan auto-start session yang LOGGED_OUT atau yang sengaja di-STOP user.
-        // (Dulu STOPPED ikut ke-load → setelah container restart, session yang
-        //  sudah di-stop malah connect sendiri.)
-        const sessions = await prisma.session.findMany({
-            where: { status: { notIn: ["LOGGED_OUT", "STOPPED"] } }
+        // Load sessions that are not explicitly STOPPED by the user.
+        // If a session has credentials in authState, it must be auto-recovered across redeploy.
+        const candidateSessions = await prisma.session.findMany({
+            where: { status: { not: "STOPPED" } }
         });
 
-        for (let i = 0; i < sessions.length; i++) {
-            const session = sessions[i];
+        const sessionsToLoad: typeof candidateSessions = [];
+        for (const session of candidateSessions) {
+            if (session.status !== "LOGGED_OUT") {
+                sessionsToLoad.push(session);
+            } else {
+                // If marked LOGGED_OUT (likely from a container restart/redeploy race),
+                // check if creds exist in DB to auto-recover:
+                const credsRecord = await prisma.authState.findUnique({
+                    where: { sessionId_key: { sessionId: session.sessionId, key: "creds-me" } }
+                });
+                if (credsRecord) {
+                    logger.info("Manager", `Auto-recovering authenticated session ${session.sessionId} (${session.name}) across redeploy.`);
+                    sessionsToLoad.push(session);
+                }
+            }
+        }
+
+        for (let i = 0; i < sessionsToLoad.length; i++) {
+            const session = sessionsToLoad[i];
             const instance = new WhatsAppInstance(session.sessionId, session.userId, this.io);
             this.sessions.set(session.sessionId, instance);
             await instance.init();
             // Jeda 4 detik antar sesi agar RAM/CPU tidak melonjak (Render 512MB RAM optimization)
-            if (i < sessions.length - 1) {
+            if (i < sessionsToLoad.length - 1) {
                 await new Promise((r) => setTimeout(r, 4000));
             }
         }
-        logger.success("Manager", `Loaded ${sessions.length} sessions.`);
+        logger.success("Manager", `Loaded ${sessionsToLoad.length} sessions.`);
 
-        // Watchdog auto-reconnect berjalan di background (server-side) supaya
-        // sesi yang putus sendiri (network blip, idle timeout, dll) otomatis
-        // konek lagi tanpa user harus refresh / start manual.
+        // Watchdog auto-reconnect berjalan di background (server-side)
         this.startWatchdog();
+    }
+
+    /**
+     * Graceful shutdown of all sessions when container terminates / redeploys
+     */
+    async shutdownAll() {
+        logger.info("Manager", "Gracefully shutting down all WhatsApp instances...");
+        this.stopWatchdog();
+        for (const [sessionId, inst] of this.sessions) {
+            try {
+                inst.isShuttingDown = true;
+                if ((inst as any).groupSyncInterval) clearInterval((inst as any).groupSyncInterval);
+                if ((inst as any).reconnectTimer) clearTimeout((inst as any).reconnectTimer);
+                if (inst.socket) {
+                    inst.socket.ev.removeAllListeners("connection.update");
+                    inst.socket.ev.removeAllListeners("creds.update");
+                    inst.socket.end(undefined);
+                    inst.socket = null;
+                }
+            } catch {
+                /* ignore */
+            }
+        }
+        this.sessions.clear();
+        logger.success("Manager", "All WhatsApp instances cleanly shut down.");
     }
 
     /**
@@ -175,9 +214,11 @@ export class WhatsAppManager {
             instance.socket?.end(undefined);
             this.sessions.delete(sessionId);
         }
-        // deleteMany is idempotent: tidak melempar P2025 kalau record sudah
-        // terhapus (mis. delete ganda / balapan event dari socket zombie).
-        await prisma.session.deleteMany({ where: { sessionId } });
+        // Purge session and its auth credentials together on explicit user deletion
+        await prisma.$transaction([
+            prisma.session.deleteMany({ where: { sessionId } }),
+            prisma.authState.deleteMany({ where: { sessionId } })
+        ]);
     }
 
     /**
