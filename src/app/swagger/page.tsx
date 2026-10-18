@@ -1,8 +1,36 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import SwaggerUI from "swagger-ui-react";
+import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import "swagger-ui-react/swagger-ui.css";
+
+const SwaggerUI = dynamic(() => import("swagger-ui-react"), {
+    ssr: false,
+    loading: () => <div className="p-10 text-center text-gray-500 text-sm">Loading API Documentation...</div>,
+});
+
+// Suppress Swagger UI legacy lifecycle warning (ModelCollapse) in React 19 StrictMode
+if (typeof window !== "undefined") {
+    const isModelCollapseWarning = (...args: any[]) => {
+        const text = args.map((a) => (typeof a === "string" ? a : String(a?.message || a || ""))).join(" ");
+        return (
+            (text.includes("UNSAFE_componentWillReceiveProps") || text.includes("componentWillReceiveProps")) &&
+            text.includes("ModelCollapse")
+        );
+    };
+
+    const originalWarn = console.warn;
+    console.warn = (...args: any[]) => {
+        if (isModelCollapseWarning(...args)) return;
+        originalWarn.apply(console, args);
+    };
+
+    const originalError = console.error;
+    console.error = (...args: any[]) => {
+        if (isModelCollapseWarning(...args)) return;
+        originalError.apply(console, args);
+    };
+}
 
 export default function ApiDocsPage() {
     const [authorized, setAuthorized] = useState(false);
@@ -16,27 +44,12 @@ export default function ApiDocsPage() {
     const [specLoading, setSpecLoading] = useState(false);
 
     useEffect(() => {
-        // Suppress Swagger UI legacy lifecycle warnings (ModelCollapse)
-        const originalWarn = console.warn;
-        console.warn = (...args) => {
-            if (typeof args[0] === 'string' &&
-                args[0].includes('UNSAFE_componentWillReceiveProps') &&
-                args[0].includes('ModelCollapse')) {
-                return;
-            }
-            originalWarn(...args);
-        };
-
         // Check if already authorized via session storage
         const isAuth = sessionStorage.getItem("swagger_auth") === "true";
         if (isAuth) {
             setAuthorized(true);
         }
         setLoading(false);
-
-        return () => {
-            console.warn = originalWarn;
-        };
     }, []);
 
     // Fetch specification with error handling.
