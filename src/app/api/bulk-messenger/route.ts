@@ -763,6 +763,33 @@ export async function POST(request: NextRequest) {
             }
         }
 
+        // Auto-recover / initialize any session instances that exist in DB but aren't loaded in memory yet
+        for (const sid of resolvedSessions) {
+            let inst = waManager.getInstance(sid);
+            if (!inst || !inst.socket) {
+                try {
+                    const dbSession = await prisma.session.findUnique({ where: { sessionId: sid } });
+                    if (dbSession && dbSession.status !== "STOPPED") {
+                        const creds = await prisma.authState.findUnique({
+                            where: { sessionId_key: { sessionId: sid, key: "creds-me" } }
+                        });
+                        if (creds) {
+                            console.log(`[BulkMessenger] Auto-recovering session instance ${sid}...`);
+                            await waManager.startSession(sid);
+                            // Brief wait for socket attachment
+                            for (let w = 0; w < 6; w++) {
+                                inst = waManager.getInstance(sid);
+                                if (inst?.socket) break;
+                                await new Promise((r) => setTimeout(r, 400));
+                            }
+                        }
+                    }
+                } catch (recErr) {
+                    console.warn(`[BulkMessenger] Could not auto-recover session ${sid}:`, recErr);
+                }
+            }
+        }
+
         // Verify at least one session is live
         const initialConnected = resolvedSessions.filter((sid: string) => {
             const inst = waManager.getInstance(sid);
@@ -770,7 +797,26 @@ export async function POST(request: NextRequest) {
         });
 
         if (initialConnected.length === 0) {
-            return NextResponse.json({ status: false, message: "None of the selected sessions are connected" }, { status: 503 });
+            const dbSessions = await prisma.session.findMany({
+                where: { sessionId: { in: resolvedSessions } },
+                select: { name: true, sessionId: true, status: true }
+            });
+            const stopped = dbSessions.filter((s) => s.status === "STOPPED");
+            const needsQR = dbSessions.filter((s) => s.status === "SCAN_QR");
+            const loggedOut = dbSessions.filter((s) => s.status === "LOGGED_OUT");
+
+            let detailMsg = "None of the selected sessions are connected";
+            if (stopped.length > 0) {
+                detailMsg = `Session "${stopped[0].name}" is stopped. Please start the session in Sessions / QR first.`;
+            } else if (needsQR.length > 0) {
+                detailMsg = `Session "${needsQR[0].name}" is waiting for QR scan. Please scan QR in Sessions / QR.`;
+            } else if (loggedOut.length > 0) {
+                detailMsg = `Session "${loggedOut[0].name}" was logged out. Please re-authenticate in Sessions / QR.`;
+            } else {
+                detailMsg = "None of the selected WhatsApp sessions are currently active. Please verify your connection in Sessions / QR.";
+            }
+
+            return NextResponse.json({ status: false, message: detailMsg }, { status: 503 });
         }
 
         // Normalize recipients to structured BulkRecipientItem list

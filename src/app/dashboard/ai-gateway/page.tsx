@@ -50,6 +50,8 @@ import {
     ExternalLink,
     Radio,
     Shuffle,
+    Save,
+    Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useSession } from "@/components/dashboard/session-provider";
@@ -163,6 +165,7 @@ export default function AIGatewayPage() {
 
     // Document Modal State
     const [docModalOpen, setDocModalOpen] = useState(false);
+    const [savingDoc, setSavingDoc] = useState(false);
     const [docForm, setDocForm] = useState<Partial<KnowledgeDoc>>({
         title: "",
         category: "Customer Support",
@@ -320,6 +323,7 @@ export default function AIGatewayPage() {
             .map((t) => t.trim().toLowerCase())
             .filter(Boolean);
 
+        setSavingDoc(true);
         try {
             const res = await fetch("/api/ai-gateway/rag/documents", {
                 method: "POST",
@@ -331,7 +335,7 @@ export default function AIGatewayPage() {
             });
             const data = await res.json();
             if (data.status) {
-                toast.success(data.message);
+                toast.success(data.message || "Document saved and indexed successfully");
                 setDocModalOpen(false);
                 fetchData();
             } else {
@@ -339,6 +343,8 @@ export default function AIGatewayPage() {
             }
         } catch {
             toast.error("Failed to save document");
+        } finally {
+            setSavingDoc(false);
         }
     };
 
@@ -1115,8 +1121,8 @@ export default function AIGatewayPage() {
 
             {/* ─── MODAL: ADD / EDIT ACCOUNT ────────────────────────────────────────── */}
             <Dialog open={accountModalOpen} onOpenChange={setAccountModalOpen}>
-                <DialogContent className="sm:max-w-[500px]">
-                    <DialogHeader>
+                <DialogContent className="sm:max-w-[520px] max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
+                    <DialogHeader className="p-5 pb-4 border-b shrink-0 bg-background">
                         <DialogTitle className="text-base flex items-center gap-2">
                             <Cpu className="h-4 w-4 text-primary" />
                             {accountForm.id ? "Edit AI Account" : "Add AI Account"}
@@ -1126,7 +1132,7 @@ export default function AIGatewayPage() {
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="space-y-3.5 py-2">
+                    <div className="p-5 space-y-4 overflow-y-auto flex-1 min-h-0 pr-4">
                         <div className="space-y-1.5">
                             <Label className="text-xs">Account Label / Friendly Name</Label>
                             <Input
@@ -1239,7 +1245,7 @@ export default function AIGatewayPage() {
                         </div>
                     </div>
 
-                    <DialogFooter>
+                    <DialogFooter className="p-4 border-t shrink-0 flex flex-row items-center justify-end gap-2 bg-muted/20">
                         <Button variant="outline" size="sm" onClick={() => setAccountModalOpen(false)}>
                             Cancel
                         </Button>
@@ -1252,8 +1258,8 @@ export default function AIGatewayPage() {
 
             {/* ─── MODAL: ADD / EDIT DOCUMENT ───────────────────────────────────────── */}
             <Dialog open={docModalOpen} onOpenChange={setDocModalOpen}>
-                <DialogContent className="sm:max-w-[650px]">
-                    <DialogHeader>
+                <DialogContent className="sm:max-w-[700px] max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
+                    <DialogHeader className="p-5 pb-4 border-b shrink-0 bg-background">
                         <DialogTitle className="text-base flex items-center gap-2">
                             <BookOpen className="h-4 w-4 text-indigo-500" />
                             {docForm.id ? "Edit Knowledge Document" : "Add Knowledge Document"}
@@ -1263,10 +1269,10 @@ export default function AIGatewayPage() {
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="space-y-3.5 py-2">
+                    <div className="p-5 space-y-4 overflow-y-auto flex-1 min-h-0 pr-4">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div className="space-y-1.5">
-                                <Label className="text-xs">Document Title</Label>
+                                <Label className="text-xs font-medium">Document Title</Label>
                                 <Input
                                     value={docForm.title || ""}
                                     onChange={(e) => setDocForm({ ...docForm, title: e.target.value })}
@@ -1276,7 +1282,7 @@ export default function AIGatewayPage() {
                             </div>
 
                             <div className="space-y-1.5">
-                                <Label className="text-xs">Category</Label>
+                                <Label className="text-xs font-medium">Category</Label>
                                 <Input
                                     value={docForm.category || ""}
                                     onChange={(e) => setDocForm({ ...docForm, category: e.target.value })}
@@ -1287,7 +1293,7 @@ export default function AIGatewayPage() {
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label className="text-xs">Keywords / Tags (comma separated)</Label>
+                            <Label className="text-xs font-medium">Keywords / Tags (comma separated)</Label>
                             <Input
                                 value={tagsInput}
                                 onChange={(e) => setTagsInput(e.target.value)}
@@ -1298,8 +1304,8 @@ export default function AIGatewayPage() {
 
                         <div className="space-y-1.5">
                             <div className="flex items-center justify-between">
-                                <Label className="text-xs">Knowledge Content (Text or Markdown)</Label>
-                                <span className="text-[10px] text-muted-foreground">
+                                <Label className="text-xs font-medium">Knowledge Content (Text or Markdown)</Label>
+                                <span className="text-[10px] text-muted-foreground font-mono">
                                     {(docForm.content || "").length} characters
                                 </span>
                             </div>
@@ -1308,17 +1314,32 @@ export default function AIGatewayPage() {
                                 value={docForm.content || ""}
                                 onChange={(e) => setDocForm({ ...docForm, content: e.target.value })}
                                 placeholder="Paste details, product catalogs, FAQ questions and answers..."
-                                className="text-xs font-sans"
+                                className="text-xs font-sans min-h-[160px] max-h-[300px] resize-y"
                             />
                         </div>
                     </div>
 
-                    <DialogFooter>
+                    <DialogFooter className="p-4 border-t shrink-0 flex flex-row items-center justify-end gap-2 bg-muted/20">
                         <Button variant="outline" size="sm" onClick={() => setDocModalOpen(false)}>
                             Cancel
                         </Button>
-                        <Button size="sm" onClick={handleSaveDocument}>
-                            Save &amp; Index Document
+                        <Button
+                            size="sm"
+                            onClick={handleSaveDocument}
+                            disabled={savingDoc}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
+                        >
+                            {savingDoc ? (
+                                <>
+                                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                                    Saving...
+                                </>
+                            ) : (
+                                <>
+                                    <Save className="h-3.5 w-3.5 mr-1.5" />
+                                    {docForm.id ? "Save Changes" : "Save & Index Document"}
+                                </>
+                            )}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

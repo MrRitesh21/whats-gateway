@@ -253,9 +253,13 @@ export class WhatsAppManager {
     }
 
     async startSession(sessionId: string) {
-        // If already running, do nothing
+        if (!this.io && (global as any).io) {
+            this.io = (global as any).io;
+        }
+
+        // If already running with an active socket, do nothing
         const existingInstance = this.sessions.get(sessionId);
-        if (existingInstance && existingInstance.status === "CONNECTED") {
+        if (existingInstance && existingInstance.status === "CONNECTED" && !!existingInstance.socket) {
             return;
         }
 
