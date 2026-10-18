@@ -221,8 +221,21 @@ export async function searchKnowledgeBase(query: string): Promise<ScoredChunk[]>
         allChunks.push(...docChunks);
     }
 
+    // Semantic query expansion for Hindi / Hinglish business intents (prevents missing pricing/budget chunks)
+    let expandedQuery = query;
+    const lower = query.toLowerCase();
+    if (/\b(budget|paisa|paise|rupaye|price|pricing|cost|charge|charges|fee|fees|kharch|kharcha|sasta|plan|plans|discount|offer|kitna|kitne)\b/i.test(lower)) {
+        expandedQuery = `${query} pricing plans starter subscription cost fees discount`;
+    }
+    if (/\b(demo|meeting|appointment|call|baat|timing|schedule|book|trial)\b/i.test(lower)) {
+        expandedQuery = `${expandedQuery} demo meeting schedule appointment free trial`;
+    }
+    if (/\b(feature|features|facility|kya kya|kaise|kaam|work|automated|automation|whatsapp)\b/i.test(lower)) {
+        expandedQuery = `${expandedQuery} features capabilities automation`;
+    }
+
     return retrieveRelevantChunks(
-        query,
+        expandedQuery,
         allChunks,
         activeDocs,
         data.ragConfig.topK,
