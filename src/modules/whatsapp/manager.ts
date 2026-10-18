@@ -203,8 +203,17 @@ export class WhatsAppManager {
         return session;
     }
 
-    public getInstance(sessionId: string) {
-        return this.sessions.get(sessionId);
+    public getInstance(idOrSessionId: string) {
+        if (!idOrSessionId) return undefined;
+        let inst = this.sessions.get(idOrSessionId);
+        if (inst) return inst;
+
+        for (const [key, val] of this.sessions.entries()) {
+            if (key === idOrSessionId || val.sessionId === idOrSessionId) {
+                return val;
+            }
+        }
+        return undefined;
     }
 
     async deleteSession(sessionId: string) {

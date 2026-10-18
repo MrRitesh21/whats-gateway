@@ -9,16 +9,25 @@ import { normalizeJid } from "@/lib/jid-utils";
 import { executeSmartChat } from "@/lib/ai-gateway/gateway";
 import { logger } from "@/lib/logger";
 
+import { WhatsAppInstance } from "@/modules/whatsapp/instance";
+
 // In-memory cache for mapping Baileys sessionId string to DB Session CUID
 const sessionDbIdCache = new Map<string, { id: string; expires: number }>();
 
 async function getDbSessionId(sessionId: string): Promise<string | null> {
+    if (!sessionId) return null;
     const cached = sessionDbIdCache.get(sessionId);
     if (cached && cached.expires > Date.now()) {
         return cached.id;
     }
-    const session = await prisma.session.findUnique({
-        where: { sessionId },
+    const session = await prisma.session.findFirst({
+        where: {
+            OR: [
+                { id: sessionId },
+                { sessionId: sessionId },
+                { name: sessionId }
+            ]
+        },
         select: { id: true }
     });
     if (session) {
@@ -26,6 +35,41 @@ async function getDbSessionId(sessionId: string): Promise<string | null> {
         return session.id;
     }
     return null;
+}
+
+async function getSessionInstance(sessionId: string): Promise<WhatsAppInstance | null> {
+    if (!sessionId) return null;
+    let instance = waManager.getInstance(sessionId);
+    if (instance?.socket) return instance;
+
+    const sessionRecord = await prisma.session.findFirst({
+        where: {
+            OR: [
+                { id: sessionId },
+                { sessionId: sessionId },
+                { name: sessionId }
+            ]
+        },
+        select: { id: true, sessionId: true, status: true, userId: true, name: true }
+    });
+
+    if (!sessionRecord) return null;
+
+    instance = waManager.getInstance(sessionRecord.sessionId) || waManager.getInstance(sessionRecord.id);
+    if (instance?.socket) return instance;
+
+    // Auto-revive in-memory instance if DB says CONNECTED but memory was cleared (e.g. Next.js Turbopack fast refresh)
+    if (sessionRecord.status === "CONNECTED" && !instance) {
+        logger.info("Chat", `Auto-recovering in-memory socket instance for session ${sessionRecord.sessionId} (${sessionRecord.name})...`);
+        const io = (global as any).io || (waManager as any).io;
+        if (io) {
+            instance = new WhatsAppInstance(sessionRecord.sessionId, sessionRecord.userId, io);
+            (waManager as any).sessions.set(sessionRecord.sessionId, instance);
+            await instance.init().catch((e: any) => logger.error("Chat", "Auto-revive failed", e));
+        }
+    }
+
+    return instance || null;
 }
 
 // Timeout helper to guarantee Baileys socket queries never hang
@@ -146,7 +190,7 @@ export async function getContactProfilePic(sessionId: string, jid: string): Prom
         const canAccess = await canAccessSession(user.id, user.role, sessionId);
         if (!canAccess) return null;
 
-        const instance = (await import("@/modules/whatsapp/manager")).waManager.getInstance(sessionId);
+        const instance = await getSessionInstance(sessionId);
         if (!instance?.socket) return null;
 
         const cleanJid = decodeURIComponent(jid);
@@ -212,7 +256,7 @@ export async function getBatchProfilePictures(sessionId: string, jids: string[])
         const canAccess = await canAccessSession(user.id, user.role, sessionId);
         if (!canAccess) return {};
 
-        const instance = (await import("@/modules/whatsapp/manager")).waManager.getInstance(sessionId);
+        const instance = await getSessionInstance(sessionId);
         if (!instance?.socket) return {};
 
         const results: Record<string, string> = {};
@@ -286,12 +330,24 @@ export async function syncChatHistory(sessionId: string, jid: string) {
     const canAccess = await canAccessSession(user.id, user.role, sessionId);
     if (!canAccess) throw new Error("Forbidden");
 
-    const dbSessionId = await getDbSessionId(sessionId);
-    if (!dbSessionId) throw new Error("Session not found");
+    const sessionRecord = await prisma.session.findFirst({
+        where: {
+            OR: [
+                { id: sessionId },
+                { sessionId: sessionId },
+                { name: sessionId }
+            ]
+        },
+        select: { id: true, sessionId: true, status: true, name: true }
+    });
+    if (!sessionRecord) throw new Error(`Session "${sessionId}" not found in database`);
 
-    const instance = waManager.getInstance(sessionId);
-    if (!instance || !instance.socket) {
-        throw new Error("WhatsApp session is not active or connected");
+    const dbSessionId = sessionRecord.id;
+    const instance = await getSessionInstance(sessionId);
+
+    if (!instance || !instance.socket || instance.status !== "CONNECTED") {
+        const displayStatus = instance?.status || sessionRecord.status;
+        throw new Error(`WhatsApp session "${sessionRecord.name || sessionId}" is not connected (Status: ${displayStatus}). Please check Sessions / QR menu.`);
     }
 
     const normalizedJid = normalizeJid(jid);
