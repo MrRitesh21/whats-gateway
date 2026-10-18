@@ -333,6 +333,11 @@ model SystemConfig {
   // Bentuk: { FREE: {...}, STANDARD: {...}, ... } meng-override default di lib/plans.ts
   planConfig         Json?
 
+  // Persistent Storage for Cloud Deployments (Survives Redeploy)
+  aiGatewayConfig    Json?
+  crmData            Json?
+  bulkData           Json?
+
   updatedAt          DateTime @updatedAt
 }
 

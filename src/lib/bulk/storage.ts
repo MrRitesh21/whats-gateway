@@ -7,6 +7,8 @@ const DATA_DIR = path.join(process.cwd(), "data");
 const BULK_HISTORY_FILE = path.join(DATA_DIR, "bulk-campaigns.json");
 const MAX_STORED_CAMPAIGNS = 100;
 
+import { prisma } from "@/lib/prisma";
+
 let inMemoryStore: BulkHistoryStore | null = null;
 let lastReadTime = 0;
 const CACHE_TTL = 3000;
@@ -18,6 +20,26 @@ export async function getBulkHistory(): Promise<BulkHistoryStore> {
     }
 
     try {
+        // 1. Read from PostgreSQL SystemConfig (persistent across redeploys)
+        const cfg = await prisma.systemConfig.findUnique({
+            where: { id: "default" },
+            select: { bulkData: true },
+        }).catch(() => null);
+
+        if (cfg?.bulkData && typeof cfg.bulkData === "object") {
+            const parsed = cfg.bulkData as any;
+            inMemoryStore = {
+                campaigns: Array.isArray(parsed.campaigns) ? parsed.campaigns : [],
+            };
+            lastReadTime = now;
+            // Mirror to local disk
+            fs.mkdir(DATA_DIR, { recursive: true })
+                .then(() => fs.writeFile(BULK_HISTORY_FILE, JSON.stringify(inMemoryStore, null, 2), "utf-8"))
+                .catch(() => {});
+            return inMemoryStore;
+        }
+
+        // 2. Fallback to local file if DB doesn't have it yet
         await fs.mkdir(DATA_DIR, { recursive: true });
         const raw = await fs.readFile(BULK_HISTORY_FILE, "utf-8");
         const parsed = JSON.parse(raw);
@@ -25,31 +47,49 @@ export async function getBulkHistory(): Promise<BulkHistoryStore> {
             campaigns: Array.isArray(parsed.campaigns) ? parsed.campaigns : [],
         };
         lastReadTime = now;
+
+        await prisma.systemConfig.upsert({
+            where: { id: "default" },
+            update: { bulkData: inMemoryStore as any },
+            create: { id: "default", bulkData: inMemoryStore as any },
+        }).catch(() => null);
+
         return inMemoryStore;
     } catch {
         inMemoryStore = { campaigns: [] };
-        try {
-            await saveBulkHistory(inMemoryStore);
-        } catch (e) {
-            logger.error("BULK", "Failed to initialize bulk-campaigns.json", e);
-        }
         lastReadTime = now;
         return inMemoryStore;
     }
 }
 
 export async function saveBulkHistory(store: BulkHistoryStore): Promise<void> {
-    await fs.mkdir(DATA_DIR, { recursive: true });
     // Cap stored campaigns to MAX_STORED_CAMPAIGNS
     if (store.campaigns.length > MAX_STORED_CAMPAIGNS) {
         store.campaigns = store.campaigns.slice(0, MAX_STORED_CAMPAIGNS);
     }
-
-    const tempFile = `${BULK_HISTORY_FILE}.tmp.${Date.now()}`;
-    await fs.writeFile(tempFile, JSON.stringify(store, null, 2), "utf-8");
-    await fs.rename(tempFile, BULK_HISTORY_FILE);
     inMemoryStore = store;
     lastReadTime = Date.now();
+
+    // 1. Persist to PostgreSQL SystemConfig
+    try {
+        await prisma.systemConfig.upsert({
+            where: { id: "default" },
+            update: { bulkData: store as any },
+            create: { id: "default", bulkData: store as any },
+        });
+    } catch (err) {
+        logger.error("BULK", "Failed to persist bulkData to PostgreSQL", err);
+    }
+
+    // 2. Mirror to local file
+    try {
+        await fs.mkdir(DATA_DIR, { recursive: true });
+        const tempFile = `${BULK_HISTORY_FILE}.tmp.${Date.now()}`;
+        await fs.writeFile(tempFile, JSON.stringify(store, null, 2), "utf-8");
+        await fs.rename(tempFile, BULK_HISTORY_FILE);
+    } catch {
+        // Ephemeral disk write error is non-fatal
+    }
 }
 
 /**

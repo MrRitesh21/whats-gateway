@@ -40,6 +40,27 @@ export async function getCRMData(): Promise<CRMStoreData> {
     }
 
     try {
+        // 1. Read from PostgreSQL SystemConfig (persistent across redeploys)
+        const cfg = await prisma.systemConfig.findUnique({
+            where: { id: "default" },
+            select: { crmData: true },
+        }).catch(() => null);
+
+        if (cfg?.crmData && typeof cfg.crmData === "object") {
+            const parsed = cfg.crmData as any;
+            inMemoryCache = {
+                leads: Array.isArray(parsed.leads) ? parsed.leads : DEFAULT_CRM_DATA.leads,
+                customStages: Array.isArray(parsed.customStages) ? parsed.customStages : DEFAULT_CRM_DATA.customStages,
+            };
+            lastReadTime = now;
+            // Mirror to local disk in background
+            fs.mkdir(DATA_DIR, { recursive: true })
+                .then(() => fs.writeFile(CRM_FILE, JSON.stringify(inMemoryCache, null, 2), "utf-8"))
+                .catch(() => {});
+            return inMemoryCache;
+        }
+
+        // 2. Fallback to local file if DB doesn't have it yet
         await fs.mkdir(DATA_DIR, { recursive: true });
         const raw = await fs.readFile(CRM_FILE, "utf-8");
         const parsed = JSON.parse(raw);
@@ -48,26 +69,49 @@ export async function getCRMData(): Promise<CRMStoreData> {
             customStages: Array.isArray(parsed.customStages) ? parsed.customStages : DEFAULT_CRM_DATA.customStages,
         };
         lastReadTime = now;
+
+        // Seed into PostgreSQL
+        await prisma.systemConfig.upsert({
+            where: { id: "default" },
+            update: { crmData: inMemoryCache as any },
+            create: { id: "default", crmData: inMemoryCache as any },
+        }).catch(() => null);
+
         return inMemoryCache;
     } catch {
-        try {
-            await saveCRMData(DEFAULT_CRM_DATA);
-        } catch (e) {
-            logger.error("CRM", "Failed to create default CRM storage file", e);
-        }
         inMemoryCache = JSON.parse(JSON.stringify(DEFAULT_CRM_DATA));
         lastReadTime = now;
+        saveCRMData(DEFAULT_CRM_DATA).catch((e) => {
+            logger.error("CRM", "Failed to create default CRM storage file", e);
+        });
         return inMemoryCache!;
     }
 }
 
 export async function saveCRMData(data: CRMStoreData): Promise<void> {
-    await fs.mkdir(DATA_DIR, { recursive: true });
-    const tempFile = `${CRM_FILE}.tmp.${Date.now()}`;
-    await fs.writeFile(tempFile, JSON.stringify(data, null, 2), "utf-8");
-    await fs.rename(tempFile, CRM_FILE);
     inMemoryCache = data;
     lastReadTime = Date.now();
+
+    // 1. Persist to PostgreSQL SystemConfig
+    try {
+        await prisma.systemConfig.upsert({
+            where: { id: "default" },
+            update: { crmData: data as any },
+            create: { id: "default", crmData: data as any },
+        });
+    } catch (err) {
+        logger.error("CRM", "Failed to persist crmData to PostgreSQL", err);
+    }
+
+    // 2. Mirror to local file
+    try {
+        await fs.mkdir(DATA_DIR, { recursive: true });
+        const tempFile = `${CRM_FILE}.tmp.${Date.now()}`;
+        await fs.writeFile(tempFile, JSON.stringify(data, null, 2), "utf-8");
+        await fs.rename(tempFile, CRM_FILE);
+    } catch {
+        // Ephemeral disk write error is non-fatal
+    }
 }
 
 /**

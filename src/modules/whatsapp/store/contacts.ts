@@ -47,16 +47,19 @@ export function bindContactSync(sock: WASocket, sessionId: string) {
             try {
                 if (!update.id) continue;
                 
+                const updateLid = (update as any).lid || (update.id.endsWith('@lid') ? update.id : undefined);
                 await prisma.contact.upsert({
                     where: { sessionId_jid: { sessionId: dbSessionId, jid: update.id } },
                     create: {
                         sessionId: dbSessionId,
                         jid: update.id,
+                        lid: updateLid,
                         name: update.name || update.notify,
                         notify: update.notify,
                         profilePic: update.imgUrl
                     },
                     update: {
+                        ...(updateLid ? { lid: updateLid } : {}),
                         name: update.name || undefined,
                         notify: update.notify || undefined,
                         profilePic: update.imgUrl || undefined

@@ -182,8 +182,20 @@ export class ChatService {
         const uniqueChats = new Map();
         chatList.forEach(chat => {
             const existing = uniqueChats.get(chat.jid);
-            if (!existing || (chat.lastMessage?.timestamp && (!existing.lastMessage?.timestamp || new Date(chat.lastMessage.timestamp) > new Date(existing.lastMessage.timestamp)))) {
+            if (!existing) {
                 uniqueChats.set(chat.jid, chat);
+            } else {
+                const chatTime = chat.lastMessage?.timestamp ? new Date(chat.lastMessage.timestamp).getTime() : 0;
+                const existingTime = existing.lastMessage?.timestamp ? new Date(existing.lastMessage.timestamp).getTime() : 0;
+                const newerMessage = chatTime > existingTime ? chat.lastMessage : existing.lastMessage;
+                uniqueChats.set(chat.jid, {
+                    ...existing,
+                    ...chat,
+                    name: chat.name || existing.name || null,
+                    notify: chat.notify || existing.notify || null,
+                    profilePic: chat.profilePic || existing.profilePic || null,
+                    lastMessage: newerMessage
+                });
             }
         });
 
@@ -211,15 +223,21 @@ export class ChatService {
 
         // Only search contact aliases for individual 1-on-1 chats
         if (!isGroup && !isNewsletter) {
-            const contact = await prisma.contact.findFirst({
+            const contacts = await prisma.contact.findMany({
                 where: {
                     sessionId: dbSessionId,
-                    OR: [{ jid: jid }, { lid: jid }, { remoteJidAlt: jid }, { jid: normalizedJid }]
+                    OR: [
+                        { jid: jid },
+                        { lid: jid },
+                        { remoteJidAlt: jid },
+                        { jid: normalizedJid },
+                        { lid: normalizedJid }
+                    ]
                 },
                 select: { jid: true, lid: true, remoteJidAlt: true }
             });
 
-            if (contact) {
+            for (const contact of contacts) {
                 if (contact.jid) queryJids.add(contact.jid);
                 if (contact.lid) queryJids.add(contact.lid);
                 if (contact.remoteJidAlt) queryJids.add(contact.remoteJidAlt);

@@ -89,16 +89,19 @@ export async function POST(
                     // Attempt to resolve @lid to @s.whatsapp.net (Standard WA Phone Number)
                     // WA Web often fails to render quotes if the participant is purely a Linked Device ID
                     if (resolvedParticipant.includes("@lid")) {
-                        const contact = await prisma.contact.findUnique({
+                        const contact = await prisma.contact.findFirst({
                             where: {
-                                sessionId_jid: { sessionId: dbSessionId, jid: resolvedParticipant }
+                                sessionId: dbSessionId,
+                                OR: [{ jid: resolvedParticipant }, { lid: resolvedParticipant }]
                             },
-                            select: { remoteJidAlt: true }
+                            select: { remoteJidAlt: true, jid: true }
                         });
 
                         // Use the real phone number JID if available
-                        if (contact?.remoteJidAlt) {
+                        if (contact?.remoteJidAlt && !contact.remoteJidAlt.includes("@lid")) {
                             resolvedParticipant = contact.remoteJidAlt;
+                        } else if (contact?.jid && !contact.jid.includes("@lid")) {
+                            resolvedParticipant = contact.jid;
                         }
                     }
 

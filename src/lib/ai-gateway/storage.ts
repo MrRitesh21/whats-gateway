@@ -48,6 +48,8 @@ Features:
     },
 };
 
+import { prisma } from "@/lib/prisma";
+
 let inMemoryCache: AIGatewayStoreData | null = null;
 let lastReadTime = 0;
 const CACHE_TTL = 3000; // 3 seconds
@@ -59,6 +61,29 @@ export async function getAIGatewayData(): Promise<AIGatewayStoreData> {
     }
 
     try {
+        // 1. Try reading from PostgreSQL SystemConfig (persistent across redeploys)
+        const cfg = await prisma.systemConfig.findUnique({
+            where: { id: "default" },
+            select: { aiGatewayConfig: true },
+        }).catch(() => null);
+
+        if (cfg?.aiGatewayConfig && typeof cfg.aiGatewayConfig === "object") {
+            const parsed = cfg.aiGatewayConfig as any;
+            inMemoryCache = {
+                accounts: Array.isArray(parsed.accounts) ? parsed.accounts : DEFAULT_CONFIG.accounts,
+                gatewayConfig: { ...DEFAULT_CONFIG.gatewayConfig, ...(parsed.gatewayConfig || {}) },
+                documents: Array.isArray(parsed.documents) ? parsed.documents : DEFAULT_CONFIG.documents,
+                ragConfig: { ...DEFAULT_CONFIG.ragConfig, ...(parsed.ragConfig || {}) },
+            };
+            lastReadTime = now;
+            // Mirror to local disk in background for resilience
+            fs.mkdir(DATA_DIR, { recursive: true })
+                .then(() => fs.writeFile(CONFIG_FILE, JSON.stringify(inMemoryCache, null, 2), "utf-8"))
+                .catch(() => {});
+            return inMemoryCache;
+        }
+
+        // 2. Fallback to local file if DB doesn't have it yet
         await fs.mkdir(DATA_DIR, { recursive: true });
         const raw = await fs.readFile(CONFIG_FILE, "utf-8");
         const parsed = JSON.parse(raw);
@@ -69,27 +94,50 @@ export async function getAIGatewayData(): Promise<AIGatewayStoreData> {
             ragConfig: { ...DEFAULT_CONFIG.ragConfig, ...(parsed.ragConfig || {}) },
         };
         lastReadTime = now;
+
+        // Seed into PostgreSQL so next redeploy has it
+        await prisma.systemConfig.upsert({
+            where: { id: "default" },
+            update: { aiGatewayConfig: inMemoryCache as any },
+            create: { id: "default", aiGatewayConfig: inMemoryCache as any },
+        }).catch(() => null);
+
         return inMemoryCache;
     } catch {
-        // If file doesn't exist, create it with default config
-        try {
-            await saveAIGatewayData(DEFAULT_CONFIG);
-        } catch (err) {
-            logger.error("AIGateway", "Failed to write initial config file", err);
-        }
+        // If neither exists, use default config and persist to DB
         inMemoryCache = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
         lastReadTime = now;
+        saveAIGatewayData(DEFAULT_CONFIG).catch((err) => {
+            logger.error("AIGateway", "Failed to write initial config file", err);
+        });
         return inMemoryCache!;
     }
 }
 
 export async function saveAIGatewayData(data: AIGatewayStoreData): Promise<void> {
-    await fs.mkdir(DATA_DIR, { recursive: true });
-    const tempFile = `${CONFIG_FILE}.tmp.${Date.now()}`;
-    await fs.writeFile(tempFile, JSON.stringify(data, null, 2), "utf-8");
-    await fs.rename(tempFile, CONFIG_FILE);
     inMemoryCache = data;
     lastReadTime = Date.now();
+
+    // 1. Persist to PostgreSQL SystemConfig
+    try {
+        await prisma.systemConfig.upsert({
+            where: { id: "default" },
+            update: { aiGatewayConfig: data as any },
+            create: { id: "default", aiGatewayConfig: data as any },
+        });
+    } catch (err) {
+        logger.error("AIGateway", "Failed to persist aiGatewayConfig to PostgreSQL", err);
+    }
+
+    // 2. Mirror to local file
+    try {
+        await fs.mkdir(DATA_DIR, { recursive: true });
+        const tempFile = `${CONFIG_FILE}.tmp.${Date.now()}`;
+        await fs.writeFile(tempFile, JSON.stringify(data, null, 2), "utf-8");
+        await fs.rename(tempFile, CONFIG_FILE);
+    } catch {
+        // Ephemeral disk write error is non-fatal since DB succeeded
+    }
 }
 
 /** Update specific account */

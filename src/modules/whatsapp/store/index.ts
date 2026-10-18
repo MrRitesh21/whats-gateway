@@ -541,14 +541,31 @@ async function processAndSaveMessage(
     }
 
     // --- Normalize LID JIDs to @s.whatsapp.net ---
+    const candidateLid = isLidJid(remoteJid) ? remoteJid : (isLidJid(remoteJidAlt) ? remoteJidAlt : null);
+    const candidatePhone = !isLidJid(remoteJidAlt) && remoteJidAlt ? remoteJidAlt : (!isLidJid(remoteJid) ? remoteJid : null);
+
     let normalizedRemoteJid = remoteJid;
     if (isLidJid(remoteJid)) {
         normalizedRemoteJid = await resolveToPhoneJid(remoteJid, dbSessionId, remoteJidAlt);
     }
+    // If normalizedRemoteJid is still a LID (e.g. fromMe reply where Baileys gives remoteJid = ...@lid with no remoteJidAlt),
+    // look up the phone contact by matching the lid column in DB
+    if (isLidJid(normalizedRemoteJid)) {
+        const matched = await prisma.contact.findFirst({
+            where: {
+                sessionId: dbSessionId,
+                OR: [{ lid: remoteJid }, { remoteJidAlt: remoteJid }]
+            },
+            select: { jid: true }
+        });
+        if (matched?.jid && !isLidJid(matched.jid)) {
+            normalizedRemoteJid = matched.jid;
+        }
+    }
+
     if (senderJid && isLidJid(senderJid)) {
         senderJid = await resolveToPhoneJid(senderJid, dbSessionId, remoteJidAlt);
     }
-
 
     // Download Media First (to save URL to DB)
     let fileUrl: string | null = null;
@@ -559,10 +576,11 @@ async function processAndSaveMessage(
     }
 
     try {
+        const finalRemoteJid = normalizeJid(normalizedRemoteJid);
         const newMessage = await prisma.message.create({
             data: {
                 sessionId: dbSessionId,
-                remoteJid: normalizeJid(normalizedRemoteJid),
+                remoteJid: finalRemoteJid,
                 senderJid,
                 fromMe: fromMe || false,
                 keyId,
@@ -575,37 +593,39 @@ async function processAndSaveMessage(
             }
         });
         
-        // Ensure contact exists (Upsert Contact)
-        const finalRemoteJid = normalizeJid(normalizedRemoteJid);
+        // Ensure contact exists (Upsert Contact with LID link)
         if (remoteJid && !remoteJid.includes('@g.us') && !remoteJid.includes('status@broadcast')) {
-            const contactJid = finalRemoteJid; // Use fully normalized JID
-            const contactData: any = {
-                sessionId: dbSessionId,
-                jid: contactJid
-            };
-
-            // Only update name/notify if message is FROM the contact (not from me)
-            if (!fromMe) {
-                if (pushName) contactData.notify = pushName;
-                if (pushName) contactData.name = pushName;
-            }
+            const contactJid = !isLidJid(finalRemoteJid) ? finalRemoteJid : (candidatePhone ? normalizeJid(candidatePhone) : finalRemoteJid);
+            const detectedLid = candidateLid || (isLidJid(remoteJid) ? remoteJid : undefined);
 
             const contact = await prisma.contact.upsert({
                 where: { sessionId_jid: { sessionId: dbSessionId, jid: contactJid } },
                 create: {
                     sessionId: dbSessionId,
                     jid: contactJid,
+                    lid: detectedLid,
                     notify: !fromMe ? pushName : undefined,
                     name: !fromMe ? pushName : undefined,
-                    // @ts-ignore
-                    remoteJidAlt: remoteJidAlt || undefined
+                    remoteJidAlt: candidatePhone || remoteJidAlt || undefined
                 },
-                update: !fromMe ? {
-                    notify: pushName,
-                    // @ts-ignore
-                    remoteJidAlt: remoteJidAlt || undefined
-                } : {}
+                update: {
+                    ...(detectedLid ? { lid: detectedLid } : {}),
+                    ...(candidatePhone || remoteJidAlt ? { remoteJidAlt: candidatePhone || remoteJidAlt } : {}),
+                    ...(!fromMe && pushName ? { notify: pushName, name: pushName } : {})
+                }
             });
+
+            // Self-healing: if an orphan contact or messages were created under the raw LID JID, reassign & clean up
+            if (detectedLid && detectedLid !== contactJid) {
+                await prisma.message.updateMany({
+                    where: { sessionId: dbSessionId, remoteJid: detectedLid },
+                    data: { remoteJid: contactJid }
+                }).catch(() => {});
+
+                await prisma.contact.deleteMany({
+                    where: { sessionId: dbSessionId, jid: detectedLid }
+                }).catch(() => {});
+            }
 
             // Welcome Message Logic
             if (!fromMe && triggerWebhook && config?.welcomeMessage && sock) {

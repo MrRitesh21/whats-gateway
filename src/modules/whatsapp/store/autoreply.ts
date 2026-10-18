@@ -3,6 +3,7 @@ import type { WASocket } from "@whiskeysockets/baileys";
 import { normalizeMessageContent } from "@whiskeysockets/baileys";
 import { logger } from "@/lib/logger";
 import { userPlanAllows } from "@/lib/plans-store";
+import { resolveToPhoneJid, isLidJid, normalizeJid } from "@/lib/jid-utils";
 
 // Helper for permission check (Deduplicate from command-handler if possible, but keep simple here)
 function canAutoReply(config: any, fromMe: boolean, senderJid: string): boolean {
@@ -216,13 +217,36 @@ export async function bindAutoReply(sock: WASocket, sessionId: string) {
 
                         // Trigger Smart RAG on 1-on-1 chats if enabled
                         if (ragCfg.enableWhatsAppAutoReply && isSessionEnabled && !isCommand && !isGroup) {
+                            // Resolve to Phone JID if LID
+                            let phoneJid = remoteJid;
+                            if (isLidJid(remoteJid)) {
+                                phoneJid = await resolveToPhoneJid(remoteJid, session.id, remoteJidAlt);
+                            }
+
+                            // Build comprehensive query set so all messages from both phone and LID aliases are found
+                            const historyJids = new Set([remoteJid, phoneJid]);
+                            try {
+                                const contact = await prisma.contact.findFirst({
+                                    where: {
+                                        sessionId: session.id,
+                                        OR: [{ jid: remoteJid }, { lid: remoteJid }, { jid: phoneJid }, { lid: phoneJid }]
+                                    },
+                                    select: { jid: true, lid: true, remoteJidAlt: true }
+                                });
+                                if (contact) {
+                                    if (contact.jid) historyJids.add(contact.jid);
+                                    if (contact.lid) historyJids.add(contact.lid);
+                                    if (contact.remoteJidAlt) historyJids.add(contact.remoteJidAlt);
+                                }
+                            } catch {}
+
                             // Fetch past 10 messages from this contact for conversation context
                             let chatHistory: any[] = [];
                             try {
                                 const pastMsgs = await prisma.message.findMany({
                                     where: {
                                         sessionId: session.id,
-                                        remoteJid: remoteJid,
+                                        remoteJid: { in: Array.from(historyJids) },
                                     },
                                     orderBy: { timestamp: "desc" },
                                     take: 10,
@@ -260,8 +284,8 @@ export async function bindAutoReply(sock: WASocket, sessionId: string) {
                                     try {
                                         const { getCRMData, saveCRMData } = await import("@/lib/crm/storage");
                                         const crmStore = await getCRMData();
-                                        const cleanPhone = remoteJid.replace(/[^0-9]/g, "");
-                                        let lead = crmStore.leads.find((l: any) => l.whatsappJid === remoteJid || l.formattedPhone === cleanPhone);
+                                        const cleanPhone = (phoneJid || remoteJid).replace(/@.*$/, "").replace(/[^0-9]/g, "");
+                                        let lead = crmStore.leads.find((l: any) => l.whatsappJid === phoneJid || l.whatsappJid === remoteJid || l.formattedPhone === cleanPhone);
 
                                         if (lead) {
                                             lead.stage = "QUALIFIED";
@@ -277,12 +301,13 @@ export async function bindAutoReply(sock: WASocket, sessionId: string) {
                                                 author: "AI Assistant",
                                             });
                                         } else {
+                                            const leadWaJid = phoneJid.endsWith("@s.whatsapp.net") ? phoneJid : `${cleanPhone}@s.whatsapp.net`;
                                             crmStore.leads.unshift({
                                                 id: Math.random().toString(36).substring(7),
                                                 name: meetingTopic !== "Product Demo" ? meetingTopic : "WhatsApp Lead",
                                                 phone: cleanPhone,
                                                 formattedPhone: cleanPhone,
-                                                whatsappJid: remoteJid,
+                                                whatsappJid: leadWaJid,
                                                 category: "Demo Request",
                                                 stage: "QUALIFIED",
                                                 priority: "HOT",
