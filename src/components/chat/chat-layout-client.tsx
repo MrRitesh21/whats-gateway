@@ -48,13 +48,16 @@ export function ChatLayoutClient({ sessionId, initialPhone, initialJid, initialN
         const urlName = searchParams?.get("name") || initialName;
 
         const resolved = resolveChat(urlJid, urlPhone, urlName);
-        if (resolved && (!selectedChat || selectedChat.jid !== resolved.jid)) {
-            setSelectedChat({
-                ...resolved,
-                profilePic: profilePicMap[resolved.jid] || null,
+        if (resolved) {
+            setSelectedChat((prev) => {
+                if (prev?.jid === resolved.jid) return prev;
+                return {
+                    ...resolved,
+                    profilePic: profilePicMap[resolved.jid] || null,
+                };
             });
         }
-    }, [searchParams, initialJid, initialPhone, initialName]);
+    }, [searchParams, initialJid, initialPhone, initialName, profilePicMap]);
 
     const handleSelectChat = (jid: string, name?: string, profilePic?: string | null) => {
         const effectivePic = profilePic || profilePicMap[jid] || null;

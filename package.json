@@ -4,9 +4,9 @@
   "version": "1.5.6",
   "private": false,
   "scripts": {
-    "dev": "npx tsx src/server/bootstrap.ts",
+    "dev": "NODE_OPTIONS='--max-old-space-size=4096' npx tsx src/server/bootstrap.ts",
     "build": "node scripts/prebuild-check.js && prisma generate && next build",
-    "start": "npx tsx src/server/bootstrap.ts",
+    "start": "NODE_OPTIONS='--max-old-space-size=4096' npx tsx src/server/bootstrap.ts",
     "lint": "eslint",
     "db:push": "prisma db push && prisma generate",
     "db:studio": "prisma studio",
