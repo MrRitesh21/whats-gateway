@@ -113,6 +113,7 @@ app.prepare().then(() => {
     if (lic.valid) {
       import("../modules/whatsapp/scheduler").then(m => m.startScheduler());
       import("../modules/whatsapp/auto-broadcast").then(m => m.startAutoBroadcast());
+      import("../modules/whatsapp/ai-proactive").then(m => m.startAIProactiveEngine());
     } else {
       logger.warn("Server", "Auto-Broadcast & Message Schedulers locked: License not activated. Activate at /activate");
     }

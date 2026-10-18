@@ -25,7 +25,7 @@ import {
     ChevronDown, ChevronUp, Info, Square, ArrowRight, Layers,
     SwitchCamera, Timer, Keyboard, History, Eye, Trash2, UserCheck,
     Search, Sparkles, ChevronLeft, ChevronRight, Check, Copy,
-    Pause, Play, LifeBuoy, WifiOff
+    Pause, Play, LifeBuoy, WifiOff, Paperclip, FileText, Image as ImageIcon, Video as VideoIcon
 } from "lucide-react";
 import { toast } from "sonner";
 import { createAppSocket } from "@/lib/socket-client";
@@ -76,6 +76,56 @@ export default function BulkMessengerPage() {
     const [rotateEvery, setRotateEvery] = useState([10]);
     const [antiBan, setAntiBan] = useState(true);
     const [faultToleranceEnabled, setFaultToleranceEnabled] = useState(true);
+
+    // ─── Media Attachment State ───────────────────────────────────────────────
+    const [mediaUrl, setMediaUrl] = useState("");
+    const [mediaType, setMediaType] = useState<"image" | "video" | "document">("image");
+    const [mediaFileName, setMediaFileName] = useState("");
+    const [uploadingMedia, setUploadingMedia] = useState(false);
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        let detectedType: "image" | "video" | "document" = "image";
+        if (file.type.startsWith("video/")) detectedType = "video";
+        else if (file.type.startsWith("image/")) detectedType = "image";
+        else detectedType = "document";
+
+        setMediaType(detectedType);
+        setMediaFileName(file.name);
+        setUploadingMedia(true);
+
+        try {
+            const formData = new FormData();
+            formData.append("file", file);
+            const res = await fetch("/api/autobroadcast/upload", {
+                method: "POST",
+                body: formData,
+            });
+            const data = await res.json();
+            if (data.status && data.data?.url) {
+                setMediaUrl(data.data.url);
+                toast.success(`Attached "${file.name}" successfully!`);
+            } else {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    setMediaUrl(reader.result as string);
+                    toast.success(`Attached "${file.name}"!`);
+                };
+                reader.readAsDataURL(file);
+            }
+        } catch {
+            const reader = new FileReader();
+            reader.onload = () => {
+                setMediaUrl(reader.result as string);
+                toast.success(`Attached "${file.name}"!`);
+            };
+            reader.readAsDataURL(file);
+        } finally {
+            setUploadingMedia(false);
+        }
+    };
 
     // ─── Runtime / Live State ──────────────────────────────────────────────────
     const [loading, setLoading] = useState(false);
@@ -442,6 +492,9 @@ export default function BulkMessengerPage() {
                     sessions: selectedSessions,
                     recipients: effectiveRecipients,
                     message: message.trim(),
+                    mediaUrl: mediaUrl || undefined,
+                    mediaType: mediaType || undefined,
+                    fileName: mediaFileName || undefined,
                     delay: delay[0],
                     rotateEvery: rotateEvery[0],
                     antiBan,
@@ -1059,6 +1112,83 @@ export default function BulkMessengerPage() {
                                         disabled={loading}
                                     />
 
+                                    {/* Media Attachment Card */}
+                                    <div className="p-3.5 bg-muted/20 rounded-2xl border border-border/60 space-y-3">
+                                        <div className="flex items-center justify-between text-xs">
+                                            <span className="font-semibold flex items-center gap-1.5 text-foreground">
+                                                <Paperclip className="h-3.5 w-3.5 text-primary" /> Media Attachment (Optional)
+                                            </span>
+                                            {mediaUrl && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-6 text-xs text-destructive hover:text-destructive px-2"
+                                                    onClick={() => {
+                                                        setMediaUrl("");
+                                                        setMediaFileName("");
+                                                    }}
+                                                >
+                                                    <Trash2 className="h-3 w-3 mr-1" /> Remove Media
+                                                </Button>
+                                            )}
+                                        </div>
+
+                                        {!mediaUrl ? (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                                                <label className="flex items-center justify-center gap-2 px-3 py-2.5 border border-dashed border-border hover:border-primary/60 rounded-xl cursor-pointer bg-background/50 hover:bg-muted/30 transition-colors text-xs text-muted-foreground font-medium">
+                                                    <ImageIcon className="h-4 w-4 text-primary" />
+                                                    <span>{uploadingMedia ? "Uploading..." : "Upload Image / Video / Doc"}</span>
+                                                    <input
+                                                        type="file"
+                                                        className="hidden"
+                                                        accept="image/*,video/mp4,.pdf,.doc,.docx"
+                                                        onChange={handleFileUpload}
+                                                        disabled={uploadingMedia || loading}
+                                                    />
+                                                </label>
+                                                <div className="flex items-center gap-1.5">
+                                                    <Input
+                                                        placeholder="Or paste Direct Media URL (https://...)"
+                                                        className="h-9 text-xs"
+                                                        value={mediaUrl}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            setMediaUrl(val);
+                                                            if (val.endsWith(".mp4") || val.endsWith(".mov")) setMediaType("video");
+                                                            else if (val.endsWith(".pdf") || val.endsWith(".doc") || val.endsWith(".docx")) setMediaType("document");
+                                                            else setMediaType("image");
+                                                        }}
+                                                        disabled={loading}
+                                                    />
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center justify-between p-2.5 bg-background rounded-xl border border-primary/20 text-xs">
+                                                <div className="flex items-center gap-2.5 overflow-hidden">
+                                                    <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                                                        {mediaType === "video" ? <VideoIcon className="h-4 w-4" /> : mediaType === "document" ? <FileText className="h-4 w-4" /> : <ImageIcon className="h-4 w-4" />}
+                                                    </div>
+                                                    <div className="truncate">
+                                                        <p className="font-medium text-foreground truncate">{mediaFileName || "Attached Media"}</p>
+                                                        <p className="text-[10px] text-muted-foreground uppercase">{mediaType} ready to send with caption</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-1.5">
+                                                    <select
+                                                        className="h-7 text-xs bg-muted border border-border rounded px-1.5 text-foreground"
+                                                        value={mediaType}
+                                                        onChange={(e) => setMediaType(e.target.value as any)}
+                                                    >
+                                                        <option value="image">Image</option>
+                                                        <option value="video">Video</option>
+                                                        <option value="document">Document</option>
+                                                    </select>
+                                                    <Badge variant="secondary" className="text-[10px]">Attached</Badge>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
                                     {/* Live Message Preview Box */}
                                     <div className="p-3.5 bg-muted/30 rounded-2xl border border-border/60 space-y-2">
                                         <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -1101,8 +1231,14 @@ export default function BulkMessengerPage() {
                                         </div>
 
                                         {/* WhatsApp style preview bubble */}
-                                        <div className="bg-[#E7FFDB] dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-100 p-3 rounded-2xl rounded-tl-none border border-emerald-200 dark:border-emerald-800/40 text-sm whitespace-pre-wrap font-sans shadow-xs">
-                                            {previewMessage || <span className="opacity-40 italic">Type a message above to see preview...</span>}
+                                        <div className="bg-[#E7FFDB] dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-100 p-3 rounded-2xl rounded-tl-none border border-emerald-200 dark:border-emerald-800/40 text-sm whitespace-pre-wrap font-sans shadow-xs space-y-2">
+                                            {mediaUrl && (
+                                                <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 border border-emerald-300 dark:border-emerald-700/50 flex items-center gap-2 text-xs font-semibold">
+                                                    <Paperclip className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-300" />
+                                                    <span>[{mediaType.toUpperCase()}]: {mediaFileName || "Attached File"}</span>
+                                                </div>
+                                            )}
+                                            <div>{previewMessage || <span className="opacity-40 italic">Type a message above to see preview...</span>}</div>
                                         </div>
                                     </div>
 

@@ -216,15 +216,92 @@ export async function bindAutoReply(sock: WASocket, sessionId: string) {
 
                         // Trigger Smart RAG on 1-on-1 chats if enabled
                         if (ragCfg.enableWhatsAppAutoReply && isSessionEnabled && !isCommand && !isGroup) {
+                            // Fetch past 10 messages from this contact for conversation context
+                            let chatHistory: any[] = [];
+                            try {
+                                const pastMsgs = await prisma.message.findMany({
+                                    where: {
+                                        sessionId: session.id,
+                                        remoteJid: remoteJid,
+                                    },
+                                    orderBy: { timestamp: "desc" },
+                                    take: 10,
+                                    select: { fromMe: true, content: true }
+                                });
+                                chatHistory = pastMsgs
+                                    .reverse()
+                                    .filter((m) => m.content && m.content.trim().length > 0)
+                                    .map((m) => ({
+                                        role: m.fromMe ? ("assistant" as const) : ("user" as const),
+                                        content: m.content || "",
+                                    }));
+                            } catch (histErr) {
+                                logger.debug("AutoReply", "Failed to load chat history (non-fatal)", histErr);
+                            }
+
                             const { executeSmartChat } = await import("@/lib/ai-gateway/gateway");
                             const aiRes = await executeSmartChat({
                                 question: text.trim(),
                                 useRAG: true,
+                                chatHistory,
                             });
 
                             if (aiRes.answer) {
+                                let cleanAnswer = aiRes.answer;
+                                const meetingMatch = cleanAnswer.match(/\[SCHEDULE_MEETING:\s*([^\|\]]+)(?:\|\s*([^\|\]]+))?(?:\|\s*([^\]]+))?\]/i);
+
+                                if (meetingMatch) {
+                                    cleanAnswer = cleanAnswer.replace(/\[SCHEDULE_MEETING:[^\]]+\]/gi, "").trim();
+                                    const meetingTime = meetingMatch[1]?.trim() || "Upcoming";
+                                    const meetingTopic = meetingMatch[2]?.trim() || "Product Demo";
+                                    const meetingNotes = meetingMatch[3]?.trim() || `Inbound WhatsApp request: ${text.slice(0, 80)}`;
+
+                                    // Automatically record scheduled meeting in CRM as QUALIFIED/HOT lead!
+                                    try {
+                                        const { getCRMData, saveCRMData } = await import("@/lib/crm/storage");
+                                        const crmStore = await getCRMData();
+                                        const cleanPhone = remoteJid.replace(/[^0-9]/g, "");
+                                        let lead = crmStore.leads.find((l: any) => l.whatsappJid === remoteJid || l.formattedPhone === cleanPhone);
+
+                                        if (lead) {
+                                            lead.stage = "QUALIFIED";
+                                            lead.priority = "HOT";
+                                            lead.followUpDate = meetingTime;
+                                            lead.followUpNote = `[AI Auto-Scheduled Demo]: ${meetingTime} | Topic: ${meetingTopic}. Note: ${meetingNotes}`;
+                                            lead.activities = lead.activities || [];
+                                            lead.activities.unshift({
+                                                id: Math.random().toString(36).substring(7),
+                                                type: "followup",
+                                                content: `Demo scheduled via WhatsApp AI: ${meetingTime} (${meetingTopic})`,
+                                                createdAt: new Date().toISOString(),
+                                                author: "AI Assistant",
+                                            });
+                                        } else {
+                                            crmStore.leads.unshift({
+                                                id: Math.random().toString(36).substring(7),
+                                                name: meetingTopic !== "Product Demo" ? meetingTopic : "WhatsApp Lead",
+                                                phone: cleanPhone,
+                                                formattedPhone: cleanPhone,
+                                                whatsappJid: remoteJid,
+                                                category: "Demo Request",
+                                                stage: "QUALIFIED",
+                                                priority: "HOT",
+                                                followUpDate: meetingTime,
+                                                followUpNote: `[AI Auto-Scheduled Demo]: ${meetingTime}. Note: ${meetingNotes}`,
+                                                tags: ["AI-Demo", "WhatsApp-Inbound"],
+                                                createdAt: new Date().toISOString(),
+                                                updatedAt: new Date().toISOString(),
+                                            });
+                                        }
+                                        await saveCRMData(crmStore);
+                                        logger.success("AutoReply", `AI Auto-Scheduled Demo for ${remoteJid} at ${meetingTime}`);
+                                    } catch (crmErr) {
+                                        logger.error("AutoReply", "Failed to save AI meeting to CRM:", crmErr);
+                                    }
+                                }
+
                                 const { antiban } = await import("@/modules/whatsapp/antiban");
-                                const payload = { text: aiRes.answer };
+                                const payload = { text: cleanAnswer };
                                 await antiban.humanize(sock, sessionId, remoteJid, payload);
                                 await sock.sendMessage(remoteJid, payload, { quoted: msg });
                                 logger.info("AutoReply", `Smart AI RAG replied to ${remoteJid} via ${aiRes.accountUsed.provider}:${aiRes.accountUsed.model}`);

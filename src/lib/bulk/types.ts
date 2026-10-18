@@ -45,6 +45,9 @@ export interface BulkCampaignRecord {
     failed: number;
     sessionsUsed: string[];
     messageTemplate: string;
+    mediaUrl?: string;
+    mediaType?: "image" | "video" | "document";
+    fileName?: string;
     delay: number;
     rotateEvery: number;
     antiBan: boolean;

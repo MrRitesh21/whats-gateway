@@ -41,6 +41,9 @@ interface ActiveCampaignState {
     startedAt: string;
     completedAt?: string;
     messageTemplate: string;
+    mediaUrl?: string;
+    mediaType?: "image" | "video" | "document";
+    fileName?: string;
     delay: number;
     rotateEvery: number;
     antiBan: boolean;
@@ -236,6 +239,9 @@ async function runCampaignWorker(campaign: ActiveCampaignState) {
                         failed: campaign.failed,
                         sessionsUsed: resolvedSessions,
                         messageTemplate: campaign.messageTemplate,
+                        mediaUrl: campaign.mediaUrl,
+                        mediaType: campaign.mediaType,
+                        fileName: campaign.fileName,
                         delay: campaign.delay,
                         rotateEvery: campaign.rotateEvery,
                         antiBan: campaign.antiBan,
@@ -261,7 +267,46 @@ async function runCampaignWorker(campaign: ActiveCampaignState) {
 
             try {
                 if (!instance?.socket) throw new Error(`Session ${currentSessionId} socket disconnected`);
-                const content = { text: interpolatedText };
+                
+                let content: any = { text: interpolatedText };
+
+                if (campaign.mediaUrl) {
+                    try {
+                        let mediaBuffer: Buffer;
+                        let mimeType = "application/octet-stream";
+
+                        if (campaign.mediaUrl.startsWith("data:")) {
+                            const parts = campaign.mediaUrl.split(",");
+                            const match = parts[0].match(/:(.*?);/);
+                            if (match) mimeType = match[1];
+                            mediaBuffer = Buffer.from(parts[1], "base64");
+                        } else {
+                            const res = await fetch(campaign.mediaUrl);
+                            if (!res.ok) throw new Error(`HTTP ${res.status} downloading media`);
+                            const ct = res.headers.get("content-type");
+                            if (ct) mimeType = ct;
+                            mediaBuffer = Buffer.from(await res.arrayBuffer());
+                        }
+
+                        const type = campaign.mediaType || (mimeType.startsWith("video") ? "video" : mimeType.startsWith("image") ? "image" : "document");
+
+                        if (type === "video") {
+                            content = { video: mediaBuffer, caption: interpolatedText };
+                        } else if (type === "document") {
+                            content = {
+                                document: mediaBuffer,
+                                caption: interpolatedText,
+                                mimetype: mimeType,
+                                fileName: campaign.fileName || campaign.mediaUrl.split("/").pop()?.split("?")[0] || "attachment.pdf"
+                            };
+                        } else {
+                            content = { image: mediaBuffer, caption: interpolatedText };
+                        }
+                    } catch (mediaErr: any) {
+                        console.error("Failed to prepare media attachment, falling back to text:", mediaErr);
+                        content = { text: interpolatedText };
+                    }
+                }
 
                 if (campaign.antiBan) {
                     try {
@@ -347,6 +392,9 @@ async function runCampaignWorker(campaign: ActiveCampaignState) {
                 failed: campaign.failed,
                 sessionsUsed: resolvedSessions,
                 messageTemplate: campaign.messageTemplate,
+                mediaUrl: campaign.mediaUrl,
+                mediaType: campaign.mediaType,
+                fileName: campaign.fileName,
                 delay: campaign.delay,
                 rotateEvery: campaign.rotateEvery,
                 antiBan: campaign.antiBan,
@@ -389,6 +437,9 @@ async function runCampaignWorker(campaign: ActiveCampaignState) {
         failed: campaign.failed,
         sessionsUsed: resolvedSessions,
         messageTemplate: campaign.messageTemplate,
+        mediaUrl: campaign.mediaUrl,
+        mediaType: campaign.mediaType,
+        fileName: campaign.fileName,
         delay: campaign.delay,
         rotateEvery: campaign.rotateEvery,
         antiBan: campaign.antiBan,
@@ -510,6 +561,9 @@ export async function DELETE(request: NextRequest) {
                 failed: campaign.failed,
                 sessionsUsed: campaign.sessionsUsed,
                 messageTemplate: campaign.messageTemplate,
+                mediaUrl: campaign.mediaUrl,
+                mediaType: campaign.mediaType,
+                fileName: campaign.fileName,
                 delay: campaign.delay,
                 rotateEvery: campaign.rotateEvery,
                 antiBan: campaign.antiBan,
@@ -620,6 +674,9 @@ export async function POST(request: NextRequest) {
                     sessionsUsed: saved.sessionsUsed,
                     startedAt: saved.startedAt,
                     messageTemplate: saved.messageTemplate,
+                    mediaUrl: saved.mediaUrl,
+                    mediaType: saved.mediaType,
+                    fileName: saved.fileName,
                     delay: saved.delay || 3000,
                     rotateEvery: saved.rotateEvery || 10,
                     antiBan: saved.antiBan ?? true,
@@ -663,6 +720,9 @@ export async function POST(request: NextRequest) {
             sessions = [],
             recipients = [],
             message = "",
+            mediaUrl,
+            mediaType,
+            fileName,
             delay = 3000,
             rotateEvery = 10,
             antiBan = true,
@@ -785,6 +845,9 @@ export async function POST(request: NextRequest) {
             sessionsUsed: resolvedSessions,
             startedAt: new Date().toISOString(),
             messageTemplate: message.trim(),
+            mediaUrl: mediaUrl || undefined,
+            mediaType: mediaType || undefined,
+            fileName: fileName || undefined,
             delay,
             rotateEvery,
             antiBan,
@@ -812,6 +875,9 @@ export async function POST(request: NextRequest) {
             failed: 0,
             sessionsUsed: resolvedSessions,
             messageTemplate: campaign.messageTemplate,
+            mediaUrl: campaign.mediaUrl,
+            mediaType: campaign.mediaType,
+            fileName: campaign.fileName,
             delay,
             rotateEvery,
             antiBan,
