@@ -105,7 +105,7 @@ export async function getChatMessages(sessionId: string, jid: string) {
     const dbSessionId = await getDbSessionId(sessionId);
     if (!dbSessionId) throw new Error("Session not found");
 
-    const messages = await ChatService.getMessages(dbSessionId, jid, 100);
+    const messages = await ChatService.getMessages(dbSessionId, jid, 250);
 
     return messages.map((msg: any) => ({
         ...msg,
@@ -379,6 +379,16 @@ export async function syncChatHistory(sessionId: string, jid: string) {
     const dbSessionId = sessionRecord.id;
     let instance = await getSessionInstance(sessionId);
     const socketReady = !!(instance && instance.socket && instance.status === "CONNECTED");
+    const normalizedJid = normalizeJid(jid);
+    const queryJids = Array.from(new Set([jid, normalizedJid]));
+
+    // Record initial message count so we know when WhatsApp phone delivers history
+    const initialCount = await prisma.message.count({
+        where: {
+            sessionId: dbSessionId,
+            remoteJid: { in: queryJids }
+        }
+    });
 
     // If local instance is not connected, but DB indicates session is CONNECTED in production:
     if (!socketReady && sessionRecord.status === "CONNECTED") {
@@ -394,8 +404,22 @@ export async function syncChatHistory(sessionId: string, jid: string) {
                     }
                 });
                 if (forwardRes.ok) {
-                    await new Promise((resolve) => setTimeout(resolve, 2500));
-                    const messages = await ChatService.getMessages(dbSessionId, jid, 100);
+                    // Poll DB for new messages delivered by WhatsApp phone (up to 8s)
+                    for (let i = 0; i < 8; i++) {
+                        await new Promise((resolve) => setTimeout(resolve, 1000));
+                        const currentCount = await prisma.message.count({
+                            where: {
+                                sessionId: dbSessionId,
+                                remoteJid: { in: queryJids }
+                            }
+                        });
+                        if (currentCount > initialCount) {
+                            // Extra 1.5s for remaining messages in batch to settle in DB
+                            await new Promise((resolve) => setTimeout(resolve, 1500));
+                            break;
+                        }
+                    }
+                    const messages = await ChatService.getMessages(dbSessionId, jid, 500);
                     return {
                         success: true,
                         messages: messages.map((msg: any) => ({
@@ -412,9 +436,8 @@ export async function syncChatHistory(sessionId: string, jid: string) {
             }
         }
 
-        // Proxy failed or not local — return existing DB messages as graceful fallback
-        // (live session is on Render; we can't fetch new history from here right now)
-        const fallbackMessages = await ChatService.getMessages(dbSessionId, jid, 100);
+        // Return up to 500 messages from DB
+        const fallbackMessages = await ChatService.getMessages(dbSessionId, jid, 500);
         return {
             success: true,
             messages: fallbackMessages.map((msg: any) => ({
@@ -429,27 +452,22 @@ export async function syncChatHistory(sessionId: string, jid: string) {
         throw new Error(`WhatsApp session "${sessionRecord.name || sessionId}" is not connected (Status: ${displayStatus}). Please check Sessions / QR menu.`);
     }
 
-    const normalizedJid = normalizeJid(jid);
-
     // Find the oldest message we have in the database for this chat
     const oldestMessage = await prisma.message.findFirst({
         where: {
             sessionId: dbSessionId,
-            OR: [
-                { remoteJid: jid },
-                { remoteJid: normalizedJid }
-            ]
+            remoteJid: { in: queryJids }
         },
         orderBy: { timestamp: "asc" },
         select: { keyId: true, fromMe: true, timestamp: true }
     });
 
     const oldestKey = oldestMessage ? {
-        remoteJid: jid,
+        remoteJid: normalizedJid,
         fromMe: oldestMessage.fromMe,
         id: oldestMessage.keyId
     } : {
-        remoteJid: jid,
+        remoteJid: normalizedJid,
         fromMe: false,
         id: "0"
     };
@@ -463,11 +481,23 @@ export async function syncChatHistory(sessionId: string, jid: string) {
         // Request history from WhatsApp phone (50 messages per query)
         await (instance.socket as any).fetchMessageHistory(50, oldestKey as any, oldestTimestampMs);
         
-        // Wait 2.5 seconds for WhatsApp phone to deliver the peer data sync
-        await new Promise((resolve) => setTimeout(resolve, 2500));
+        // Poll DB for new messages delivered by WhatsApp phone (up to 8s)
+        for (let i = 0; i < 8; i++) {
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            const currentCount = await prisma.message.count({
+                where: {
+                    sessionId: dbSessionId,
+                    remoteJid: { in: queryJids }
+                }
+            });
+            if (currentCount > initialCount) {
+                await new Promise((resolve) => setTimeout(resolve, 1500));
+                break;
+            }
+        }
 
-        // Return the fresh message list
-        const messages = await ChatService.getMessages(dbSessionId, jid, 100);
+        // Return the fresh message list (up to 500 messages)
+        const messages = await ChatService.getMessages(dbSessionId, jid, 500);
         return {
             success: true,
             messages: messages.map((msg: any) => ({

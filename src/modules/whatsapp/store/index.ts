@@ -123,8 +123,8 @@ export const bindSessionStore = (sock: WASocket, sessionId: string, io: Server |
 
         // Process history messages in batches without dropping older chats
         if (messages && messages.length > 0 && dbSessionId) {
-            // Process up to 500 history messages safely
-            const maxHistory = 500;
+            // Process up to 10000 history messages safely without truncating
+            const maxHistory = 10000;
             const messagesToProcess = messages.length > maxHistory
                 ? messages.slice(messages.length - maxHistory)
                 : messages;
@@ -133,9 +133,9 @@ export const bindSessionStore = (sock: WASocket, sessionId: string, io: Server |
             logger.info("Store", `Processing ${messagesToProcess.length} history messages (total received: ${messages.length})...`);
             
             const processedMessages: any[] = [];
-            // Process in batches of 15 with 60ms delay to keep CPU/RAM minimal on 512MB
-            for (let i = 0; i < messagesToProcess.length; i += 15) {
-                const batch = messagesToProcess.slice(i, i + 15);
+            // Process in batches of 25 with 30ms delay to balance throughput and memory
+            for (let i = 0; i < messagesToProcess.length; i += 25) {
+                const batch = messagesToProcess.slice(i, i + 25);
                 const results = await Promise.allSettled(
                     batch.map(msg => processAndSaveMessage(msg, finalDbSessionId, sessionId, false, sock, undefined, true).catch(() => null))
                 );
@@ -144,7 +144,7 @@ export const bindSessionStore = (sock: WASocket, sessionId: string, io: Server |
                         processedMessages.push(res.value);
                     }
                 });
-                await new Promise(r => setTimeout(r, 60));
+                await new Promise(r => setTimeout(r, 30));
             }
             logger.info("Store", `History sync complete: ${processedMessages.length} messages saved`);
 
@@ -155,6 +155,9 @@ export const bindSessionStore = (sock: WASocket, sessionId: string, io: Server |
                     timestamp: m.timestamp instanceof Date ? m.timestamp.toISOString() : m.timestamp
                 }));
                 io?.to(sessionId).emit('message.update', serialized);
+                if (finalDbSessionId && finalDbSessionId !== sessionId) {
+                    io?.to(finalDbSessionId).emit('message.update', serialized);
+                }
             }
         }
 

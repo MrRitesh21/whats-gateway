@@ -64,11 +64,11 @@ export async function POST(
         });
 
         const oldestKey = oldestMessage ? {
-            remoteJid: decodedJid,
+            remoteJid: normalizedJid,
             fromMe: oldestMessage.fromMe,
             id: oldestMessage.keyId
         } : {
-            remoteJid: decodedJid,
+            remoteJid: normalizedJid,
             fromMe: false,
             id: "0"
         };

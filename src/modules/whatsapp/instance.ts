@@ -1,4 +1,5 @@
 import makeWASocket, {
+    Browsers,
     DisconnectReason,
     fetchLatestBaileysVersion,
     makeCacheableSignalKeyStore,
@@ -124,7 +125,7 @@ export class WhatsAppInstance {
                 creds: state.creds,
                 keys: makeCacheableSignalKeyStore(state.keys, silentLogger),
             },
-            browser: ["Ubuntu", "Chrome", "20.0.04"],
+            browser: Browsers.macOS("Desktop"),
             markOnlineOnConnect: botConfig?.alwaysOnline ?? true,
             syncFullHistory: true, // Enable full WhatsApp chat history sync
             getMessage: async (key) => {

@@ -213,7 +213,7 @@ export class ChatService {
     /**
      * Get recent messages for a specific chat.
      */
-    static async getMessages(dbSessionId: string, jid: string, take: number = 100) {
+    static async getMessages(dbSessionId: string, jid: string, take: number = 250) {
         // Query with normalized JID to handle @c.us / @s.whatsapp.net variations
         const normalizedJid = normalizeJid(jid);
         const isGroup = jid.endsWith("@g.us");
