@@ -10,6 +10,7 @@ import { RefreshCw, Save, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { PaymentSettingsCard } from "@/components/dashboard/payment-settings";
 import { PlanEditorCard } from "@/components/dashboard/plan-editor";
+import { LicenseSettingsCard } from "@/components/dashboard/license-settings";
 
 export default function SettingsPage() {
     const { data: authSession } = useSession();
@@ -189,6 +190,9 @@ export default function SettingsPage() {
                     </div>
                 </CardContent>
             </Card>
+
+            {/* License & Activation Control — SUPERADMIN only */}
+            {isSuperAdmin && <LicenseSettingsCard />}
 
             {/* Payment Gateway — SUPERADMIN only */}
             {isSuperAdmin && <PaymentSettingsCard />}
