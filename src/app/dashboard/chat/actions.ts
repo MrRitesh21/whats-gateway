@@ -121,6 +121,40 @@ export async function sendChatMessage(sessionId: string, jid: string, text: stri
     const canAccess = await canAccessSession(user.id, user.role, sessionId);
     if (!canAccess) throw new Error("Forbidden");
 
+    // Check if local socket is active. If not, check if session is CONNECTED in DB (e.g. running on Render)
+    const instance = await getSessionInstance(sessionId);
+    if (!instance?.socket || instance.status !== "CONNECTED") {
+        const sessionRecord = await prisma.session.findFirst({
+            where: { OR: [{ id: sessionId }, { sessionId: sessionId }, { name: sessionId }] },
+            select: { id: true, sessionId: true, status: true }
+        });
+        if (sessionRecord?.status === "CONNECTED") {
+            const isLocal = process.env.NODE_ENV !== "production" || !process.env.RENDER;
+            if (isLocal) {
+                try {
+                    const liveRenderUrl = "https://whats-gateway.onrender.com";
+                    const forwardRes = await fetch(`${liveRenderUrl}/api/messages/${sessionRecord.sessionId}/${encodeURIComponent(jid)}/send`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "x-internal-secret": process.env.AUTH_SECRET || ""
+                        },
+                        body: JSON.stringify({ message: { text } })
+                    });
+                    if (forwardRes.ok) {
+                        return {
+                            success: true,
+                            keyId: `fw-${Date.now()}`,
+                            timestamp: new Date().toISOString()
+                        };
+                    }
+                } catch (err: any) {
+                    logger.warn("Chat", "Forwarding send message to live Render failed:", err?.message);
+                }
+            }
+        }
+    }
+
     try {
         const result = await ChatService.sendTextMessage(sessionId, jid, { text });
         return {
@@ -343,10 +377,47 @@ export async function syncChatHistory(sessionId: string, jid: string) {
     if (!sessionRecord) throw new Error(`Session "${sessionId}" not found in database`);
 
     const dbSessionId = sessionRecord.id;
-    const instance = await getSessionInstance(sessionId);
+    let instance = await getSessionInstance(sessionId);
+    const socketReady = !!(instance && instance.socket && instance.status === "CONNECTED");
+
+    // If local instance is not connected, but DB indicates session is CONNECTED in production:
+    if (!socketReady && sessionRecord.status === "CONNECTED") {
+        const liveRenderUrl = "https://whats-gateway.onrender.com";
+        const isLocal = process.env.NODE_ENV !== "production" || !process.env.RENDER;
+        if (isLocal) {
+            try {
+                logger.info("Chat", `Local socket not active. Forwarding sync to live Render instance...`);
+                const forwardRes = await fetch(`${liveRenderUrl}/api/chat/${sessionRecord.sessionId}/${encodeURIComponent(jid)}/sync-history`, {
+                    method: "POST",
+                    headers: {
+                        "x-internal-secret": process.env.AUTH_SECRET || ""
+                    }
+                });
+                if (forwardRes.ok) {
+                    await new Promise((resolve) => setTimeout(resolve, 2500));
+                    const messages = await ChatService.getMessages(dbSessionId, jid, 100);
+                    return {
+                        success: true,
+                        messages: messages.map((msg: any) => ({
+                            ...msg,
+                            timestamp: msg.timestamp.toISOString()
+                        }))
+                    };
+                } else {
+                    const errBody = await forwardRes.json().catch(() => ({}));
+                    logger.warn("Chat", "Forwarding response not ok:", forwardRes.status, errBody);
+                }
+            } catch (err: any) {
+                logger.warn("Chat", "Forwarding to live Render failed:", err?.message);
+            }
+        }
+    }
 
     if (!instance || !instance.socket || instance.status !== "CONNECTED") {
         const displayStatus = instance?.status || sessionRecord.status;
+        if (sessionRecord.status === "CONNECTED" && (!instance || instance.status !== "CONNECTED")) {
+            throw new Error(`WhatsApp session "${sessionRecord.name || sessionId}" is running live on the cloud server (Render). Please deploy/wait for the cloud update to finish, or open the dashboard directly on https://whats-gateway.onrender.com`);
+        }
         throw new Error(`WhatsApp session "${sessionRecord.name || sessionId}" is not connected (Status: ${displayStatus}). Please check Sessions / QR menu.`);
     }
 
@@ -382,7 +453,7 @@ export async function syncChatHistory(sessionId: string, jid: string) {
     try {
         logger.info("Chat", `Requesting earlier message history for ${jid} from WhatsApp phone...`);
         // Request history from WhatsApp phone (50 messages per query)
-        await instance.socket.fetchMessageHistory(50, oldestKey as any, oldestTimestampMs);
+        await (instance.socket as any).fetchMessageHistory(50, oldestKey as any, oldestTimestampMs);
         
         // Wait 2.5 seconds for WhatsApp phone to deliver the peer data sync
         await new Promise((resolve) => setTimeout(resolve, 2500));

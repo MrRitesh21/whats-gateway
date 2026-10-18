@@ -55,6 +55,22 @@ export async function validateApiKey(request: NextRequest) {
  * Get authenticated user from either session or API key
  */
 export async function getAuthenticatedUser(request?: NextRequest) {
+    // Inter-server dev-to-prod proxy forwarding authentication
+    if (request && process.env.AUTH_SECRET) {
+        const internalSecret = request.headers.get("x-internal-secret");
+        if (internalSecret && internalSecret === process.env.AUTH_SECRET) {
+            try {
+                const adminUser = await prisma.user.findFirst({
+                    where: { role: "SUPERADMIN" },
+                    select: { id: true, email: true, name: true, role: true, plan: true, planExpiresAt: true }
+                });
+                if (adminUser) return { ...adminUser, authMethod: "apiKey" as const };
+            } catch {
+                /* ignore */
+            }
+        }
+    }
+
     // First try API key if request is provided
     if (request) {
         const apiKeyUser = await validateApiKey(request);
