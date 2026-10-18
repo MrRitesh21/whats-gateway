@@ -359,7 +359,7 @@ export async function getBatchProfilePictures(sessionId: string, jids: string[])
  */
 export async function syncChatHistory(sessionId: string, jid: string) {
     const user = await getAuthenticatedUserForAction();
-    if (!user) throw new Error("Unauthorized");
+    if (!user) throw new Error("Your login session has expired. Please refresh the page or log in again.");
 
     const canAccess = await canAccessSession(user.id, user.role, sessionId);
     if (!canAccess) throw new Error("Forbidden");
