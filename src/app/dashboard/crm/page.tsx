@@ -69,6 +69,10 @@ import {
     Check,
     Sparkles,
     History,
+    ChevronLeft,
+    ChevronRight,
+    ChevronsLeft,
+    ChevronsRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -163,6 +167,10 @@ export default function CRMPage() {
     const [selectedPriority, setSelectedPriority] = useState<string>("ALL");
     const [onlyFollowUpsToday, setOnlyFollowUpsToday] = useState(false);
 
+    // Pagination
+    const [currentPage, setCurrentPage] = useState<number>(1);
+    const [pageSize, setPageSize] = useState<string>("25"); // "10" | "25" | "50" | "100" | "all"
+
     // Selected Rows for Bulk Actions
     const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
 
@@ -226,7 +234,7 @@ export default function CRMPage() {
                 category: selectedCategory,
                 city: selectedCity,
                 priority: selectedPriority,
-                limit: "500",
+                limit: "all",
             });
             if (onlyFollowUpsToday) {
                 params.set("onlyFollowUpsToday", "true");
@@ -256,6 +264,34 @@ export default function CRMPage() {
         }, 300);
         return () => clearTimeout(timer);
     }, [search, selectedStage, selectedCategory, selectedCity, selectedPriority, onlyFollowUpsToday]);
+
+    // Reset current page whenever filters or search query change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [search, selectedStage, selectedCategory, selectedCity, selectedPriority, onlyFollowUpsToday]);
+
+    // Pagination calculations
+    const isAll = pageSize === "all";
+    const numericPageSize = isAll ? Math.max(1, leads.length) : parseInt(pageSize, 10);
+    const totalPages = isAll ? 1 : Math.max(1, Math.ceil(leads.length / numericPageSize));
+    const validCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+    const startIndex = isAll ? 0 : (validCurrentPage - 1) * numericPageSize;
+    const endIndex = isAll ? leads.length : Math.min(startIndex + numericPageSize, leads.length);
+    const displayedLeads = isAll ? leads : leads.slice(startIndex, endIndex);
+
+    // Smart page numbers generator with ellipsis
+    const pageNumbers = useMemo(() => {
+        if (totalPages <= 7) {
+            return Array.from({ length: totalPages }, (_, i) => i + 1);
+        }
+        if (validCurrentPage <= 4) {
+            return [1, 2, 3, 4, 5, "...", totalPages];
+        }
+        if (validCurrentPage >= totalPages - 3) {
+            return [1, "...", totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+        }
+        return [1, "...", validCurrentPage - 1, validCurrentPage, validCurrentPage + 1, "...", totalPages];
+    }, [validCurrentPage, totalPages]);
 
     // Handle CSV File Selection
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -981,16 +1017,28 @@ export default function CRMPage() {
                                 </div>
                             </div>
                         ) : (
-                            <div className="overflow-x-auto">
+                            <>
+                                <div className="overflow-x-auto">
                                 <Table>
                                     <TableHeader>
                                         <TableRow className="text-xs hover:bg-transparent">
                                             <TableHead className="w-10">
                                                 <Checkbox
-                                                    checked={selectedLeadIds.length === leads.length && leads.length > 0}
+                                                    checked={
+                                                        displayedLeads.length > 0 &&
+                                                        displayedLeads.every((l) => selectedLeadIds.includes(l.id))
+                                                    }
                                                     onCheckedChange={(checked) => {
-                                                        if (checked) setSelectedLeadIds(leads.map((l) => l.id));
-                                                        else setSelectedLeadIds([]);
+                                                        if (checked) {
+                                                            setSelectedLeadIds((prev) => {
+                                                                const set = new Set(prev);
+                                                                displayedLeads.forEach((l) => set.add(l.id));
+                                                                return Array.from(set);
+                                                            });
+                                                        } else {
+                                                            const displayedIds = new Set(displayedLeads.map((l) => l.id));
+                                                            setSelectedLeadIds((prev) => prev.filter((id) => !displayedIds.has(id)));
+                                                        }
                                                     }}
                                                 />
                                             </TableHead>
@@ -1005,7 +1053,7 @@ export default function CRMPage() {
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {leads.map((lead) => {
+                                        {displayedLeads.map((lead) => {
                                             const isSelected = selectedLeadIds.includes(lead.id);
                                             const stageObj = STAGES.find((s) => s.id === lead.stage) || STAGES[0];
                                             const priorityObj = lead.priority ? PRIORITY_CONFIG[lead.priority] : PRIORITY_CONFIG.WARM;
@@ -1135,6 +1183,152 @@ export default function CRMPage() {
                                     </TableBody>
                                 </Table>
                             </div>
+
+                            {/* ─── TABLE PAGINATION FOOTER ─────────────────────────────────────────── */}
+                            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-3.5 border-t border-border/50 bg-muted/15 text-xs">
+                                {/* Left: Items Count & Selection Status */}
+                                <div className="flex items-center gap-3 text-muted-foreground flex-wrap">
+                                    <div>
+                                        {leads.length === 0 ? (
+                                            <span>0 leads</span>
+                                        ) : isAll ? (
+                                            <span>
+                                                Showing all <strong className="text-foreground font-semibold">{leads.length}</strong> leads
+                                            </span>
+                                        ) : (
+                                            <span>
+                                                Showing <strong className="text-foreground font-semibold">{startIndex + 1}</strong> to{" "}
+                                                <strong className="text-foreground font-semibold">{endIndex}</strong> of{" "}
+                                                <strong className="text-foreground font-semibold">{leads.length}</strong> leads
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {selectedLeadIds.length > 0 && (
+                                        <div className="flex items-center gap-2 border-l border-border/60 pl-3">
+                                            <Badge variant="secondary" className="text-[11px] font-normal py-0">
+                                                {selectedLeadIds.length} selected
+                                            </Badge>
+                                            {selectedLeadIds.length < leads.length && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSelectedLeadIds(leads.map((l) => l.id))}
+                                                    className="text-primary hover:underline text-[11px] font-medium"
+                                                >
+                                                    Select all {leads.length}
+                                                </button>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedLeadIds([])}
+                                                className="text-muted-foreground hover:text-foreground text-[11px]"
+                                            >
+                                                Clear
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Right: Rows Per Page & Page Navigation */}
+                                <div className="flex items-center gap-4 flex-wrap">
+                                    {/* Rows Per Page Selector */}
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-muted-foreground whitespace-nowrap">Rows per page:</span>
+                                        <Select
+                                            value={pageSize}
+                                            onValueChange={(val) => {
+                                                setPageSize(val);
+                                                setCurrentPage(1);
+                                            }}
+                                        >
+                                            <SelectTrigger className="h-8 w-[78px] text-xs font-medium bg-background">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent align="end">
+                                                <SelectItem value="10">10</SelectItem>
+                                                <SelectItem value="25">25</SelectItem>
+                                                <SelectItem value="50">50</SelectItem>
+                                                <SelectItem value="100">100</SelectItem>
+                                                <SelectItem value="all">All</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    {/* Navigation controls */}
+                                    {!isAll && totalPages > 1 && (
+                                        <div className="flex items-center gap-1">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="h-8 w-8 p-0 bg-background"
+                                                disabled={validCurrentPage <= 1}
+                                                onClick={() => setCurrentPage(1)}
+                                                title="First page"
+                                            >
+                                                <ChevronsLeft className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="h-8 w-8 p-0 bg-background"
+                                                disabled={validCurrentPage <= 1}
+                                                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                                                title="Previous page"
+                                            >
+                                                <ChevronLeft className="h-4 w-4" />
+                                            </Button>
+
+                                            <div className="flex items-center gap-1 mx-1">
+                                                {pageNumbers.map((p, idx) => {
+                                                    if (typeof p === "string") {
+                                                        return (
+                                                            <span key={`ellipsis-${idx}`} className="px-1.5 text-muted-foreground font-semibold">
+                                                                …
+                                                            </span>
+                                                        );
+                                                    }
+                                                    const isCurrent = p === validCurrentPage;
+                                                    return (
+                                                        <Button
+                                                            key={`page-${p}`}
+                                                            variant={isCurrent ? "default" : "outline"}
+                                                            size="sm"
+                                                            className={`h-8 min-w-[32px] px-2 text-xs font-medium ${
+                                                                isCurrent ? "shadow-sm pointer-events-none" : "bg-background"
+                                                            }`}
+                                                            onClick={() => setCurrentPage(p)}
+                                                        >
+                                                            {p}
+                                                        </Button>
+                                                    );
+                                                })}
+                                            </div>
+
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="h-8 w-8 p-0 bg-background"
+                                                disabled={validCurrentPage >= totalPages}
+                                                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                                                title="Next page"
+                                            >
+                                                <ChevronRight className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="h-8 w-8 p-0 bg-background"
+                                                disabled={validCurrentPage >= totalPages}
+                                                onClick={() => setCurrentPage(totalPages)}
+                                                title="Last page"
+                                            >
+                                                <ChevronsRight className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </>
                         )}
                     </CardContent>
                 </Card>

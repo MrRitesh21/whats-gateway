@@ -31,7 +31,9 @@ export async function GET(request: NextRequest) {
         const priority = searchParams.get("priority") || "";
         const followup = searchParams.get("followup") || "";
         const page = parseInt(searchParams.get("page") || "1", 10);
-        const limit = parseInt(searchParams.get("limit") || "500", 10);
+        const limitParam = (searchParams.get("limit") || "5000").toLowerCase();
+        const isAll = limitParam === "all";
+        const limit = isAll ? 100000 : parseInt(limitParam, 10) || 5000;
 
         const data = await getCRMData();
         const todayStr = new Date().toISOString().split("T")[0];
@@ -73,9 +75,9 @@ export async function GET(request: NextRequest) {
         }
 
         const total = filtered.length;
-        const totalPages = Math.ceil(total / limit) || 1;
-        const startIndex = (page - 1) * limit;
-        const paginatedLeads = filtered.slice(startIndex, startIndex + limit);
+        const totalPages = isAll ? 1 : (Math.ceil(total / limit) || 1);
+        const startIndex = isAll ? 0 : (page - 1) * limit;
+        const paginatedLeads = isAll ? filtered : filtered.slice(startIndex, startIndex + limit);
 
         // Compute counts and values per stage
         const stageCounts: Record<string, number> = {
@@ -133,8 +135,8 @@ export async function GET(request: NextRequest) {
                 leads: paginatedLeads,
                 meta: {
                     total,
-                    page,
-                    limit,
+                    page: isAll ? 1 : page,
+                    limit: isAll ? total : limit,
                     totalPages,
                 },
                 stageCounts,
