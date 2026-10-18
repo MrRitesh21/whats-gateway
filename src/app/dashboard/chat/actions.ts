@@ -107,7 +107,7 @@ export async function getChatMessages(sessionId: string, jid: string) {
 
     const messages = await ChatService.getMessages(dbSessionId, jid, 100);
 
-    return messages.map(msg => ({
+    return messages.map((msg: any) => ({
         ...msg,
         timestamp: msg.timestamp.toISOString()
     }));
@@ -269,7 +269,7 @@ export async function getBatchProfilePictures(sessionId: string, jids: string[])
                 where: { sessionId: dbSessionId, jid: { in: jids } },
                 select: { jid: true, lid: true, remoteJidAlt: true, profilePic: true }
             });
-            dbContacts.forEach(c => {
+            dbContacts.forEach((c: any) => {
                 if (c.profilePic) results[c.jid] = c.profilePic;
                 const alt = c.lid || c.remoteJidAlt;
                 if (alt) contactMap.set(c.jid, alt);
@@ -391,7 +391,7 @@ export async function syncChatHistory(sessionId: string, jid: string) {
         const messages = await ChatService.getMessages(dbSessionId, jid, 100);
         return {
             success: true,
-            messages: messages.map(msg => ({
+            messages: messages.map((msg: any) => ({
                 ...msg,
                 timestamp: msg.timestamp.toISOString()
             }))
@@ -457,14 +457,14 @@ export async function suggestChatReplies(sessionId: string, jid: string): Promis
     // Chronological order for prompt
     const chronological = recentMessages.slice().reverse();
     const transcript = chronological
-        .filter(m => m.content && m.content.trim())
-        .map(m => `${m.fromMe ? "Business Agent" : (m.pushName || "Customer")}: ${m.content}`)
+        .filter((m: any) => m.content && m.content.trim())
+        .map((m: any) => `${m.fromMe ? "Business Agent" : (m.pushName || "Customer")}: ${m.content}`)
         .join("\n");
 
     const latestCustomerMsg = chronological
         .slice()
         .reverse()
-        .find(m => !m.fromMe && m.content && m.content.trim())?.content || chronological[chronological.length - 1]?.content || "Inquiry";
+        .find((m: any) => !m.fromMe && m.content && m.content.trim())?.content || chronological[chronological.length - 1]?.content || "Inquiry";
 
     try {
         const aiResult = await executeSmartChat({
