@@ -34,7 +34,7 @@ RUN npx prisma generate && npm run build
 # ---------- runner: jalankan custom server ----------
 FROM base AS runner
 ENV NODE_ENV=production
-ENV NODE_OPTIONS="--max-old-space-size=384 --optimize-for-size --expose-gc"
+ENV NODE_OPTIONS="--max-old-space-size=384 --expose-gc"
 # Jalankan sebagai non-root
 RUN addgroup -g 1001 -S nodejs && adduser -u 1001 -S nextjs -G nodejs
 # Copy seluruh app yang sudah ter-build (server dijalankan via tsx -> butuh source TS)

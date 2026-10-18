@@ -10,7 +10,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: NODE_OPTIONS
-        value: "--max-old-space-size=384 --optimize-for-size --expose-gc"
+        value: "--max-old-space-size=384 --expose-gc"
       - key: TZ
         value: Asia/Kolkata
       - key: PORT
