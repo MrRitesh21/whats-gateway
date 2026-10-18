@@ -411,13 +411,21 @@ export async function syncChatHistory(sessionId: string, jid: string) {
                 logger.warn("Chat", "Forwarding to live Render failed:", err?.message);
             }
         }
+
+        // Proxy failed or not local — return existing DB messages as graceful fallback
+        // (live session is on Render; we can't fetch new history from here right now)
+        const fallbackMessages = await ChatService.getMessages(dbSessionId, jid, 100);
+        return {
+            success: true,
+            messages: fallbackMessages.map((msg: any) => ({
+                ...msg,
+                timestamp: msg.timestamp.toISOString()
+            }))
+        };
     }
 
     if (!instance || !instance.socket || instance.status !== "CONNECTED") {
         const displayStatus = instance?.status || sessionRecord.status;
-        if (sessionRecord.status === "CONNECTED" && (!instance || instance.status !== "CONNECTED")) {
-            throw new Error(`WhatsApp session "${sessionRecord.name || sessionId}" is running live on the cloud server (Render). Please deploy/wait for the cloud update to finish, or open the dashboard directly on https://whats-gateway.onrender.com`);
-        }
         throw new Error(`WhatsApp session "${sessionRecord.name || sessionId}" is not connected (Status: ${displayStatus}). Please check Sessions / QR menu.`);
     }
 
