@@ -431,12 +431,12 @@ export class WhatsAppInstance {
             select: { jid: true, name: true }
         });
 
-        const contactNameMap = new Map(newsletterContacts.map(c => [c.jid, c.name]));
+        const contactNameMap = new Map(newsletterContacts.map((c: { jid: string; name: string | null }) => [c.jid, c.name]));
 
         // Collect all newsletter JIDs
         const allNewsletterJids = new Set([
-            ...newsletterMessages.map(m => m.remoteJid),
-            ...newsletterContacts.map(c => c.jid)
+            ...newsletterMessages.map((m: { remoteJid: string }) => m.remoteJid),
+            ...newsletterContacts.map((c: { jid: string }) => c.jid)
         ]);
 
         // Filter out ones that already have names
