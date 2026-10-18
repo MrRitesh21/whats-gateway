@@ -1,0 +1,644 @@
+import { prisma } from "@/lib/prisma";
+import type { WASocket, WAMessage } from "@whiskeysockets/baileys";
+import { downloadMediaMessage, areJidsSameUser } from "@whiskeysockets/baileys";
+import Sticker from "wa-sticker-formatter";
+import sharp from "sharp";
+import fs from "fs/promises";
+import path from "path";
+import os from "os";
+import { exec } from "child_process";
+import { promisify } from "util";
+import { logger } from "@/lib/logger";
+
+const execAsync = promisify(exec);
+
+// Map to track start times for uptime
+const startTimes = new Map<string, number>();
+
+// Default bot config
+// Default bot config
+const DEFAULT_CONFIG = {
+    enabled: true,
+    botMode: 'OWNER',
+    botAllowedJids: [] as string[],
+    autoReplyMode: 'ALL',
+    autoReplyAllowedJids: [] as string[],
+    enableSticker: true,
+    enableVideoSticker: true,
+    maxStickerDuration: 10,
+    enablePing: true,
+    enableUptime: true,
+    botName: "WebotApp WhatsApp Bot",
+    prefix: "#",
+    removeBgApiKey: null as string | null
+};
+
+export function setSessionStartTime(sessionId: string) {
+    if (!startTimes.has(sessionId)) {
+        startTimes.set(sessionId, Date.now());
+    }
+}
+
+// ===== Helper untuk command grup =====
+function isGroupJid(jid: string) {
+    return jid.endsWith("@g.us");
+}
+
+/**
+ * Bungkus socket supaya semua sendMessage dari command interaktif pakai
+ * skipQueue:true → kirim instan tanpa delay anti-ban "mengetik" (yang bikin
+ * respon command terasa lemot). Method lain (groupMetadata, dll) diteruskan apa adanya.
+ */
+function makeFastSock(sock: WASocket): WASocket {
+    return new Proxy(sock, {
+        get(target, prop) {
+            if (prop === "sendMessage") {
+                return (jid: string, content: any, options?: any) =>
+                    (target.sendMessage as any)(jid, content, { ...(options || {}), skipQueue: true });
+            }
+            const val = (target as any)[prop];
+            return typeof val === "function" ? val.bind(target) : val;
+        },
+    }) as WASocket;
+}
+
+// Cache metadata grup singkat supaya command grup tidak fetch ulang tiap kali
+// (mengurangi latensi & rate-limit). TTL pendek karena admin/anggota bisa berubah.
+const groupMetaCache = new Map<string, { meta: any; at: number }>();
+const GROUP_META_TTL = 15_000;
+
+async function getGroupMetadataCached(sock: WASocket, jid: string): Promise<any> {
+    const cached = groupMetaCache.get(jid);
+    if (cached && Date.now() - cached.at < GROUP_META_TTL) return cached.meta;
+    const meta = await sock.groupMetadata(jid);
+    groupMetaCache.set(jid, { meta, at: Date.now() });
+    return meta;
+}
+
+function safeSameUser(a?: string, b?: string): boolean {
+    if (!a || !b) return false;
+    try {
+        return areJidsSameUser(a, b);
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Cek apakah salah satu identitas kandidat (nomor/LID) cocok dengan peserta
+ * yang berstatus admin. WhatsApp baru memakai LID (@lid) untuk id peserta,
+ * jadi bot/sender harus dicocokkan terhadap id, jid, lid, dan phoneNumber.
+ */
+function matchesAdmin(participants: any[], candidates: (string | null | undefined)[]): boolean {
+    const cands = candidates.filter(Boolean) as string[];
+    if (!cands.length) return false;
+    return participants.some((p: any) => {
+        const isAdm = p.admin === "admin" || p.admin === "superadmin";
+        if (!isAdm) return false;
+        const fields = [p.id, p.jid, p.lid, p.phoneNumber].filter(Boolean);
+        return cands.some((c) => fields.some((f) => safeSameUser(f, c)));
+    });
+}
+
+/**
+ * Pastikan: di grup, pengirim admin (atau owner/fromMe), dan bot adalah admin.
+ * Mengembalikan metadata kalau lolos, atau pesan error.
+ */
+async function requireGroupAdmin(
+    sock: WASocket,
+    remoteJid: string,
+    msg: WAMessage,
+    fromMe: boolean
+): Promise<{ ok: boolean; metadata?: any; error?: string }> {
+    if (!isGroupJid(remoteJid)) return { ok: false, error: "❌ This command can only be used in groups." };
+
+    let metadata: any;
+    try {
+        metadata = await getGroupMetadataCached(sock, remoteJid);
+    } catch {
+        return { ok: false, error: "❌ Failed to fetch group data." };
+    }
+
+    const participants = metadata.participants || [];
+
+    // Bot can be identified by number (id) OR LID — check both.
+    const botCandidates = [sock.user?.id, (sock.user as any)?.lid];
+    const botIsAdmin = matchesAdmin(participants, botCandidates);
+
+    // Sender can also be number or LID depending on version/group.
+    const k: any = msg.key;
+    const ctx: any = msg.message?.extendedTextMessage?.contextInfo;
+    const senderCandidates = [
+        k.participant,
+        k.participantAlt,
+        k.participantPn,
+        (msg as any).participant,
+        ctx?.participant,
+    ];
+    const senderIsAdmin = fromMe || matchesAdmin(participants, senderCandidates);
+
+    if (!senderIsAdmin) return { ok: false, error: "❌ Group admins only." };
+    if (!botIsAdmin) return { ok: false, error: "❌ Please make the bot a group admin first." };
+
+    return { ok: true, metadata };
+}
+
+/** Ambil target JID dari: mention > reply > nomor di argumen. */
+function resolveTargetJids(msg: WAMessage, args: string[]): string[] {
+    const ctx = msg.message?.extendedTextMessage?.contextInfo;
+    const mentioned = ctx?.mentionedJid || [];
+    if (mentioned.length) return mentioned;
+    if (ctx?.participant) return [ctx.participant];
+    const nums = args.map((a) => a.replace(/[^0-9]/g, "")).filter((n) => n.length >= 6);
+    return nums.map((n) => `${n}@s.whatsapp.net`);
+}
+
+export async function handleBotCommand(
+    sock: WASocket | undefined,
+    sessionId: string,
+    msg: WAMessage
+) {
+    if (!sock || !msg.message || !msg.key.remoteJid) return;
+
+    // Semua balasan command lewat fast-send (tanpa delay anti-ban) → responsif.
+    sock = makeFastSock(sock);
+
+    const remoteJid = msg.key.remoteJid;
+    const fromMe = msg.key.fromMe || false;
+
+    // Get text content
+    let text = "";
+    const messageContent = msg.message;
+
+    if (messageContent.conversation) {
+        text = messageContent.conversation;
+    } else if (messageContent.extendedTextMessage?.text) {
+        text = messageContent.extendedTextMessage.text;
+    } else if (messageContent.imageMessage?.caption) {
+        text = messageContent.imageMessage.caption;
+    } else if (messageContent.videoMessage?.caption) {
+        text = messageContent.videoMessage.caption;
+    }
+
+    // Quick check: skip non-command messages early (common prefixes)
+    // We'll do a proper prefix check after loading config
+    if (!text || text.length === 0) return;
+
+    // Fetch session first
+    const session = await prisma.session.findUnique({
+        where: { sessionId },
+        select: { id: true }
+    });
+
+    if (!session) return;
+
+    // Fetch BotConfig separately
+    // @ts-ignore - Prisma Client types might lag in IDE
+    const botConfig = await (prisma as any).botConfig.findUnique({
+        where: { sessionId: session.id }
+    });
+
+    const config = botConfig || DEFAULT_CONFIG;
+
+    if (!config.enabled) return;
+
+    // Now check prefix with loaded config
+    const prefix = (config as any).prefix || "#";
+    if (!text.startsWith(prefix)) return;
+
+    // Verify Access Permissions
+    const botMode = (config as any).botMode || 'OWNER'; // Default to OWNER if missing
+
+    // Check Permission
+    let canExecute = false;
+
+    if (fromMe) {
+        canExecute = true; // Owner always allowed
+    } else {
+        if (botMode === 'ALL') {
+            canExecute = true;
+        } else if (botMode === 'SPECIFIC') {
+            const allowedJids = (config as any).botAllowedJids || [];
+            // Standardized Sender Logic (matches webhook & store)
+            const isGroup = msg.key.remoteJid?.endsWith("@g.us") || false;
+            const remoteJidAlt = msg.key.remoteJidAlt;
+            let senderJid = (isGroup ? (msg.key.participant || msg.participant) : msg.key.remoteJid) || "";
+
+            if (!isGroup && remoteJidAlt) {
+                senderJid = remoteJidAlt;
+            }
+
+            if (Array.isArray(allowedJids)) {
+                canExecute = allowedJids.some(jid => senderJid.includes(jid));
+            }
+        } else if (botMode === 'BLACKLIST') {
+            const blockedJids = (config as any).botBlockedJids || [];
+            const isGroup = msg.key.remoteJid?.endsWith("@g.us") || false;
+            const remoteJidAlt = msg.key.remoteJidAlt;
+            let senderJid = (isGroup ? (msg.key.participant || msg.participant) : msg.key.remoteJid) || "";
+
+            if (!isGroup && remoteJidAlt) {
+                senderJid = remoteJidAlt;
+            }
+
+            // If blacklist, allowed by default UNLESS in blocked list
+            canExecute = true;
+            if (Array.isArray(blockedJids)) {
+                const isBlocked = blockedJids.some(jid => senderJid.includes(jid));
+                if (isBlocked) canExecute = false;
+            }
+        }
+    }
+
+    if (!canExecute) return;
+
+    const [command, ...args] = text.trim().split(" ");
+    const cmd = command.toLowerCase().slice(prefix.length); // remove prefix
+
+    try {
+        switch (cmd) {
+            case "ping": {
+                if (!config.enablePing) return;
+                await sock.sendMessage(remoteJid, { text: "Pong! 🏓" }, { quoted: msg });
+                break;
+            }
+
+            case "id": {
+                await sock.sendMessage(remoteJid, {
+                    text: `*Chat ID:* \`${remoteJid}\``
+                }, { quoted: msg });
+                break;
+            }
+
+            case "uptime": {
+                if (!config.enableUptime) return;
+
+                const start = startTimes.get(sessionId) || Date.now();
+                const uptimeMs = Date.now() - start;
+                const hours = Math.floor(uptimeMs / 3600000);
+                const minutes = Math.floor((uptimeMs % 3600000) / 60000);
+                const seconds = Math.floor((uptimeMs % 60000) / 1000);
+
+                await sock.sendMessage(remoteJid, {
+                    text: `*Session Uptime:* ${hours}h ${minutes}m ${seconds}s`
+                }, { quoted: msg });
+                break;
+            }
+
+            case "ai":
+            case "ask":
+            case "tanya": {
+                const query = args.join(" ").trim();
+                if (!query) {
+                    await sock.sendMessage(
+                        remoteJid,
+                        { text: `❌ Please provide a question. Example: *${prefix}ai what are your business hours?*` },
+                        { quoted: msg }
+                    );
+                    return;
+                }
+
+                try {
+                    await sock.sendMessage(remoteJid, { react: { text: "🤔", key: msg.key } }).catch(() => {});
+                    const { executeSmartChat } = await import("@/lib/ai-gateway/gateway");
+                    const res = await executeSmartChat({
+                        question: query,
+                        useRAG: true,
+                    });
+
+                    await sock.sendMessage(
+                        remoteJid,
+                        { text: `🤖 *AI Assistant:*\n\n${res.answer}` },
+                        { quoted: msg }
+                    );
+                    await sock.sendMessage(remoteJid, { react: { text: "💡", key: msg.key } }).catch(() => {});
+                } catch (aiErr: any) {
+                    logger.error("Bot", "AI Command failed", aiErr);
+                    await sock.sendMessage(
+                        remoteJid,
+                        { text: `⚠️ AI Assistant temporarily unavailable: ${aiErr.message || "Failed to generate answer"}` },
+                        { quoted: msg }
+                    );
+                }
+                break;
+            }
+
+            case "sticker":
+            case "s":
+            case "stiker": {
+                if (!config.enableSticker) return;
+
+                // Check if message has image or video
+                let mediaMsg: WAMessage | null = msg;
+
+                // If quoted, check quoted
+                const quoted = messageContent.extendedTextMessage?.contextInfo?.quotedMessage;
+                if (quoted) {
+                    mediaMsg = {
+                        key: {
+                            remoteJid,
+                            id: messageContent.extendedTextMessage?.contextInfo?.stanzaId,
+                        },
+                        message: quoted
+                    } as WAMessage;
+                }
+
+                const msgContent = mediaMsg.message;
+                const isImage = !!msgContent?.imageMessage;
+                const isVideo = !!msgContent?.videoMessage;
+
+                if (!isImage && !isVideo) {
+                    await sock.sendMessage(remoteJid, { text: "❌ Please reply to an image/video or send media with caption #sticker" }, { quoted: msg });
+                    return;
+                }
+
+                if (msgContent?.extendedTextMessage) {
+                    await sock.sendMessage(remoteJid, { text: "❌ Cannot convert text message to sticker." }, { quoted: msg });
+                    return;
+                }
+
+                // Handle Video Limits
+                if (isVideo) {
+                    if (!(config as any).enableVideoSticker) {
+                        await sock.sendMessage(remoteJid, { text: "❌ Video stickers are disabled in bot settings." }, { quoted: msg });
+                        return;
+                    }
+
+                    const seconds = msgContent?.videoMessage?.seconds || 0;
+                    const maxDuration = (config as any).maxStickerDuration || 10;
+
+                    if (seconds > maxDuration) {
+                        await sock.sendMessage(remoteJid, { text: `❌ Video too long! Max duration is ${maxDuration} seconds.` }, { quoted: msg });
+                        return;
+                    }
+                }
+
+                await sock.sendMessage(remoteJid, { react: { text: "⏳", key: msg.key } });
+
+                try {
+                    // Download
+                    let buffer = await downloadMediaMessage(
+                        mediaMsg,
+                        "buffer",
+                        {},
+                        {
+                            logger: console as any,
+                            reuploadRequest: sock.updateMediaMessage
+                        }
+                    ) as Buffer;
+
+                    // Resize/Compress Logic
+                    if (isImage) {
+                        try {
+                            // Use limitInputPixels: false to handle large images
+                            buffer = await sharp(buffer, { limitInputPixels: false })
+                                .resize(512, 512, { // Resize to standard 512x512 sticker size directly
+                                    fit: 'inside',
+                                    withoutEnlargement: true
+                                })
+                                .toBuffer();
+                        } catch (resizeErr) {
+                            logger.error("Bot", "Image Resize failed", resizeErr);
+                        }
+                    } else if (isVideo) {
+                        try {
+                            const tempInput = path.join(os.tmpdir(), `input_${Date.now()}.mp4`);
+                            const tempOutput = path.join(os.tmpdir(), `output_${Date.now()}.mp4`);
+
+                            await fs.writeFile(tempInput, buffer);
+
+                            // Compress Video using ffmpeg
+                            // Extreme Compression: 8fps, CRF 40, 300k bitrate, ultrafast
+                            await execAsync(`ffmpeg -y -i "${tempInput}" -vf "scale=512:512:force_original_aspect_ratio=decrease,fps=10" -c:v libx264 -preset ultrafast -crf 40 -b:v 300k -maxrate 300k -bufsize 600k -an "${tempOutput}"`);
+
+                            buffer = await fs.readFile(tempOutput);
+
+                            // Cleanup
+                            await fs.unlink(tempInput).catch(() => { });
+                            await fs.unlink(tempOutput).catch(() => { });
+                        } catch (videoErr) {
+                            logger.error("Bot", "Video Compression failed", videoErr);
+                            // Continue with original buffer if compression fails, or throw? 
+                            // If it fails, likely original will fail too, but let's try.
+                        }
+                    }
+
+                    // Check for background removal (Only for Images)
+                    const isRemoveBg = args.includes("nobg") || args.includes("removebg");
+                    if (isImage && isRemoveBg && config.removeBgApiKey) {
+                        try {
+                            // Convert Buffer to Uint8Array for Blob compatibility
+                            const uint8Array = new Uint8Array(buffer);
+                            const blob = new Blob([uint8Array], { type: 'image/png' });
+
+                            const formData = new FormData();
+                            formData.append('image_file', blob, 'image.png');
+                            formData.append('size', 'auto');
+
+                            const res = await fetch('https://api.remove.bg/v1.0/removebg', {
+                                method: 'POST',
+                                headers: {
+                                    'X-Api-Key': config.removeBgApiKey
+                                },
+                                body: formData
+                            });
+
+                            if (res.ok) {
+                                const arrayBuffer = await res.arrayBuffer();
+                                buffer = Buffer.from(arrayBuffer);
+                            } else {
+                                const err = await res.json();
+                                throw new Error(`RemoveBG Error: ${(err as any).errors?.[0]?.title || res.statusText}`);
+                            }
+                        } catch (bgError) {
+                            logger.error("Bot", "RemoveBG Failed:", bgError);
+                            await sock.sendMessage(remoteJid, { text: `⚠️ Remove BG failed: ${(bgError as any).message}. Sending normal sticker...` }, { quoted: msg });
+                        }
+                    } else if (isImage && isRemoveBg && !config.removeBgApiKey) {
+                        await sock.sendMessage(remoteJid, { text: `⚠️ Remove BG API Key not configured in dashboard. Sending normal sticker...` }, { quoted: msg });
+                    }
+
+
+                    // Convert
+                    const sticker = new Sticker(buffer as Buffer, {
+                        pack: (config as any).botName || "WebotApp WhatsApp Bot",
+                        author: "By " + ((config as any).botName || "WebotApp WhatsApp Bot"),
+                        type: "full", // full, crop, circle
+                        quality: 15 // Extreme quality reduction for size
+                    });
+
+                    const stickerBuffer = await sticker.toBuffer();
+
+                    // Send
+                    await sock.sendMessage(remoteJid, { sticker: stickerBuffer }, { quoted: msg });
+                    await sock.sendMessage(remoteJid, { react: { text: "✅", key: msg.key } });
+
+                } catch (e) {
+                    logger.error("Bot", "Sticker generation failed", e);
+                    await sock.sendMessage(remoteJid, { text: "❌ Failed to create sticker. Error: " + (e as any).message }, { quoted: msg });
+                }
+                break;
+            }
+
+            case "menu":
+            case "help": {
+                const botName = (config as any).botName || "WebotApp WhatsApp Bot";
+                const menu = `
+🤖 *${botName} Menu* 🤖
+
+📌 *Commands:*
+• *${prefix}sticker* / *${prefix}s*: Convert Image/Video to Sticker
+  - Supports Images, GIFs, and Videos (max ${(config as any).maxStickerDuration || 10}s)
+  - Use *${prefix}sticker nobg* to remove background (Images only)
+• *${prefix}ping*: Check Bot Status
+• *${prefix}uptime*: Check Session Uptime
+• *${prefix}id*: Get Chat ID
+• *${prefix}ai* <question>: Ask Smart AI RAG Assistant
+
+👥 *Group (Admin only):*
+• *${prefix}tagall* [message]: Mention all members
+• *${prefix}hidetag* [message]: Hidden mention
+• *${prefix}kick* (tag/reply/number): Remove member
+• *${prefix}add* <number>: Add member
+• *${prefix}promote* / *${prefix}demote* (tag/reply): Promote / demote admin
+• *${prefix}open* / *${prefix}close*: Open / close group
+
+_Made with ❤️ by WebotApp WhatsApp_
+`;
+                await sock.sendMessage(remoteJid, { text: menu }, { quoted: msg });
+                break;
+            }
+
+            // ===== GROUP: TAG ALL =====
+            case "tagall":
+            case "everyone": {
+                if (!isGroupJid(remoteJid)) {
+                    await sock.sendMessage(remoteJid, { text: "❌ Groups only." }, { quoted: msg });
+                    return;
+                }
+                const metadata = await getGroupMetadataCached(sock, remoteJid);
+                const parts = metadata.participants || [];
+                const mentions = parts.map((p: any) => p.id);
+                const note = args.join(" ").trim();
+                let teks = note ? `${note}\n\n` : `📢 *Tag All* (${parts.length} members)\n\n`;
+                for (const p of parts) teks += `• @${(p.id as string).split("@")[0]}\n`;
+                await sock.sendMessage(remoteJid, { text: teks, mentions });
+                break;
+            }
+
+            // ===== GROUP: HIDETAG =====
+            case "hidetag":
+            case "ht": {
+                if (!isGroupJid(remoteJid)) {
+                    await sock.sendMessage(remoteJid, { text: "❌ Groups only." }, { quoted: msg });
+                    return;
+                }
+                const metadata = await getGroupMetadataCached(sock, remoteJid);
+                const mentions = (metadata.participants || []).map((p: any) => p.id);
+                const teks = args.join(" ").trim() || "📢";
+                await sock.sendMessage(remoteJid, { text: teks, mentions });
+                break;
+            }
+
+            // ===== GROUP: KICK =====
+            case "kick": {
+                const gate = await requireGroupAdmin(sock, remoteJid, msg, fromMe);
+                if (!gate.ok) {
+                    await sock.sendMessage(remoteJid, { text: gate.error! }, { quoted: msg });
+                    return;
+                }
+                const targets = resolveTargetJids(msg, args);
+                if (!targets.length) {
+                    await sock.sendMessage(remoteJid, { text: `❌ Tag/reply to a user, or type ${prefix}kick <number>.` }, { quoted: msg });
+                    return;
+                }
+                try {
+                    await sock.groupParticipantsUpdate(remoteJid, targets, "remove");
+                    await sock.sendMessage(remoteJid, { text: `✅ Successfully kicked ${targets.length} member(s).`, mentions: targets }, { quoted: msg });
+                } catch (e) {
+                    await sock.sendMessage(remoteJid, { text: `❌ Failed to kick: ${(e as any)?.message || e}` }, { quoted: msg });
+                }
+                break;
+            }
+
+            // ===== GROUP: ADD =====
+            case "add": {
+                const gate = await requireGroupAdmin(sock, remoteJid, msg, fromMe);
+                if (!gate.ok) {
+                    await sock.sendMessage(remoteJid, { text: gate.error! }, { quoted: msg });
+                    return;
+                }
+                const targets = resolveTargetJids(msg, args);
+                if (!targets.length) {
+                    await sock.sendMessage(remoteJid, { text: `❌ Type ${prefix}add <number> (with country code, e.g. 91xxxxxxxx).` }, { quoted: msg });
+                    return;
+                }
+                try {
+                    const res: any = await sock.groupParticipantsUpdate(remoteJid, targets, "add");
+                    const failed = Array.isArray(res) ? res.filter((r: any) => r.status !== "200") : [];
+                    if (failed.length) {
+                        await sock.sendMessage(remoteJid, { text: `⚠️ Some members could not be added (privacy settings or left recently). Added: ${targets.length - failed.length}/${targets.length}.` }, { quoted: msg });
+                    } else {
+                        await sock.sendMessage(remoteJid, { text: `✅ Successfully added ${targets.length} member(s).` }, { quoted: msg });
+                    }
+                } catch (e) {
+                    await sock.sendMessage(remoteJid, { text: `❌ Failed to add: ${(e as any)?.message || e}` }, { quoted: msg });
+                }
+                break;
+            }
+
+            // ===== GROUP: PROMOTE / DEMOTE =====
+            case "promote":
+            case "demote": {
+                const gate = await requireGroupAdmin(sock, remoteJid, msg, fromMe);
+                if (!gate.ok) {
+                    await sock.sendMessage(remoteJid, { text: gate.error! }, { quoted: msg });
+                    return;
+                }
+                const targets = resolveTargetJids(msg, args);
+                if (!targets.length) {
+                    await sock.sendMessage(remoteJid, { text: `❌ Tag/reply to a user to ${prefix}${cmd}.` }, { quoted: msg });
+                    return;
+                }
+                try {
+                    await sock.groupParticipantsUpdate(remoteJid, targets, cmd === "promote" ? "promote" : "demote");
+                    await sock.sendMessage(remoteJid, {
+                        text: cmd === "promote" ? `✅ Promoted to admin.` : `✅ Demoted from admin.`,
+                        mentions: targets
+                    }, { quoted: msg });
+                } catch (e) {
+                    await sock.sendMessage(remoteJid, { text: `❌ Failed: ${(e as any)?.message || e}` }, { quoted: msg });
+                }
+                break;
+            }
+
+            // ===== GROUP: OPEN / CLOSE =====
+            case "open":
+            case "close":
+            case "mute":
+            case "unmute": {
+                const gate = await requireGroupAdmin(sock, remoteJid, msg, fromMe);
+                if (!gate.ok) {
+                    await sock.sendMessage(remoteJid, { text: gate.error! }, { quoted: msg });
+                    return;
+                }
+                const lock = cmd === "close" || cmd === "mute";
+                try {
+                    await sock.groupSettingUpdate(remoteJid, lock ? "announcement" : "not_announcement");
+                    await sock.sendMessage(remoteJid, {
+                        text: lock ? "🔒 Group closed — only admins can send messages." : "🔓 Group opened — all members can send messages."
+                    }, { quoted: msg });
+                } catch (e) {
+                    await sock.sendMessage(remoteJid, { text: `❌ Failed to change group settings: ${(e as any)?.message || e}` }, { quoted: msg });
+                }
+                break;
+            }
+
+            default:
+                // Ignore unknown commands
+                break;
+        }
+    } catch (e) {
+        logger.error("Bot", "Bot command error", e);
+    }
+}

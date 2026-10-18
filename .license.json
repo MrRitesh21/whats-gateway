@@ -1,0 +1,11 @@
+{
+  "purchase_code": "WEBOT-REG-B146-CDE0-562B",
+  "license_type": "regular",
+  "customer_name": "Ritesh",
+  "customer_email": "admin@example.com",
+  "domain": "localhost",
+  "activated_at": "2026-10-17T09:31:09.702Z",
+  "token": "c1072ae8221f5866ea3147fcbe0dcaaa",
+  "updates_until": "2027-10-17T09:31:10.005Z",
+  "support_until": "2027-10-17T09:31:10.005Z"
+}

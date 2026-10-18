@@ -1,0 +1,30 @@
+===============================================================
+WEBOTAPP LAB - OFFICIAL PURCHASE CODE & LICENSE CERTIFICATE
+===============================================================
+
+Product: WhatsGateway — Multi-Device WhatsApp Marketing, Chatbot & REST API Gateway
+License Key: WEBOT-REG-B146-CDE0-562B
+Generated On: 17/10/2026, 14:39:45
+Status: ACTIVE & VERIFIED
+Website: https://lab.webotapp.com
+
+---------------------------------------------------------------
+HOW TO ACTIVATE YOUR SOFTWARE:
+---------------------------------------------------------------
+1. Upload and extract your source code ZIP to your hosting / cPanel public_html directory.
+2. Open your browser and go to your installation URL:
+   e.g. https://yourdomain.com/installer
+3. Fill in your Administrator details and enter your License Key:
+   WEBOT-REG-B146-CDE0-562B
+4. Enter your MySQL database credentials and complete the installation wizard.
+
+---------------------------------------------------------------
+SUPPORT & SERVICES:
+---------------------------------------------------------------
+* Installation Support: Available on request (Full setup on your hosting/server)
+* Request Customisation: Starts from Rs 24,999
+* Direct WhatsApp Support: +91 7002484119
+* Official Portal: https://lab.webotapp.com
+
+Thank you for choosing WebotApp Lab!
+===============================================================

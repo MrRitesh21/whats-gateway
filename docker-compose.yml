@@ -1,0 +1,51 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: wa-akg-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-wa_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-wa_password}
+      POSTGRES_DB: ${DB_NAME:-wa_akg}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-wa_user} -d ${DB_NAME:-wa_akg}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wa-akg-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER:-wa_user}:${DB_PASSWORD:-wa_password}@db:5432/${DB_NAME:-wa_akg}?schema=public
+      - AUTH_SECRET=${AUTH_SECRET:-e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855}
+      - AUTH_TRUST_HOST=true
+      - BASE_URL=${BASE_URL:-http://localhost:3030}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3030}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3030}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:3030/api}
+      - NODE_ENV=production
+      - PORT=3030
+      - TZ=${TZ:-Asia/Kolkata}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@example.com}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+      - CORS_ALLOW_ORIGIN=${CORS_ALLOW_ORIGIN:-}
+    ports:
+      - "${PORT:-3030}:3030"
+    volumes:
+      - ./data:/app/data
+    command: >
+      sh -c "npx prisma db push && node scripts/setup-admin.js $${ADMIN_EMAIL:-admin@example.com} $${ADMIN_PASSWORD:-admin123} && npm run start"
+
+volumes:
+  postgres_data:

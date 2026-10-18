@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebotApp WhatsGateway - Installation Manual & Setup Guide</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: #0f172a;
+      --border: #1e293b;
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --accent: #10b981;
+      --accent-glow: rgba(16, 185, 129, 0.15);
+      --code-bg: #020617;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 40px 20px;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 40px;
+      padding-bottom: 30px;
+      border-bottom: 1px solid var(--border);
+    }
+    .badge {
+      display: inline-block;
+      background: var(--accent-glow);
+      color: var(--accent);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 12px;
+    }
+    h1 {
+      font-size: 32px;
+      font-weight: 900;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 15px;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+    }
+    h2 {
+      color: #fff;
+      font-size: 20px;
+      font-weight: 800;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    h3 {
+      color: #f1f5f9;
+      font-size: 16px;
+      margin: 18px 0 8px;
+    }
+    p { margin-bottom: 14px; font-size: 14px; color: var(--text); }
+    ul, ol { margin-left: 20px; margin-bottom: 16px; font-size: 14px; }
+    li { margin-bottom: 6px; }
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      overflow-x: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 13px;
+      color: #38bdf8;
+      margin-bottom: 16px;
+    }
+    code {
+      background: var(--code-bg);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 12px;
+      color: #38bdf8;
+    }
+    .alert {
+      background: rgba(16, 185, 129, 0.08);
+      border-left: 4px solid var(--accent);
+      padding: 14px 18px;
+      border-radius: 0 10px 10px 0;
+      margin-bottom: 16px;
+      font-size: 13px;
+    }
+    .alert-warning {
+      background: rgba(245, 158, 11, 0.08);
+      border-left-color: #f59e0b;
+    }
+    .banner {
+      background: linear-gradient(135deg, rgba(6, 78, 59, 0.8), rgba(15, 23, 42, 0.9));
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      border-radius: 16px;
+      padding: 20px 24px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+    .banner-text h3 {
+      color: #fff;
+      font-size: 16px;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+    .banner-text p {
+      color: #a7f3d0;
+      font-size: 13px;
+    }
+    .btn-wa {
+      background: #10b981;
+      color: #000;
+      font-weight: 800;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 12px 20px;
+      border-radius: 12px;
+      text-decoration: none;
+      white-space: nowrap;
+      display: inline-block;
+      transition: all 0.2s;
+    }
+    .btn-wa:hover {
+      background: #34d399;
+    }
+    .license-card {
+      background: linear-gradient(135deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.95));
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .license-card h3 {
+      color: #38bdf8;
+      font-size: 18px;
+      font-weight: 800;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .license-option {
+      background: rgba(2, 6, 23, 0.7);
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-top: 12px;
+    }
+    .license-option h4 {
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .btn-activate {
+      display: inline-block;
+      background: #38bdf8;
+      color: #0f172a;
+      font-weight: 800;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 10px 18px;
+      border-radius: 10px;
+      text-decoration: none;
+      margin-top: 10px;
+      transition: all 0.2s;
+    }
+    .btn-activate:hover {
+      background: #7dd3fc;
+    }
+    .footer {
+      text-align: center;
+      margin-top: 40px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <span class="badge">Official WebotApp Documentation</span>
+      <h1>WebotApp WhatsGateway</h1>
+      <p class="subtitle">Enterprise Multi-Device WhatsApp Marketing, Chatbot & REST API Gateway</p>
+    </div>
+
+    <!-- WhatsApp Support Banner -->
+    <div class="banner">
+      <div class="banner-text">
+        <h3>Problems in installing? WhatsApp: +91 7002484119</h3>
+        <p>We do complete installation, server setup, and configuration at as low as <strong>at min price</strong>.</p>
+      </div>
+      <a href="https://wa.me/917002484119?text=Hi%20WebotApp%2C%20I%20need%20help%20with%20WhatsGateway%20installation%20(setup%20at%20min%20price)" target="_blank" class="btn-wa">Message on WhatsApp</a>
+    </div>
+
+    <!-- License Key Activation Section -->
+    <div class="license-card">
+      <h3>🔑 How to Get & Activate Your License Key</h3>
+      <p style="font-size: 14px; color: #cbd5e1;">A valid WebotApp license key (format: <code>WEBOT-WA-REG-XXXX-XXXX-XXXX</code>) is required to unlock the installation wizard.</p>
+
+      <div class="license-option" style="border-color: rgba(56, 189, 248, 0.4);">
+        <h4>Option A: Purchased on CodeCanyon, Codester, or External Marketplaces</h4>
+        <p style="font-size: 13px; color: #94a3b8; margin-bottom: 8px;">
+          If you purchased on <strong>CodeCanyon (Envato)</strong>, <strong>Codester</strong>, or an authorized partner, use our 30-second automated license claim portal:
+        </p>
+        <ol style="font-size: 13px; color: #cbd5e1; margin-bottom: 12px; padding-left: 20px;">
+          <li>Open the activation portal: <a href="https://lab.webotapp.com/activate" target="_blank" style="color: #38bdf8; font-weight: 700;">https://lab.webotapp.com/activate</a></li>
+          <li>Select your marketplace (<strong>CodeCanyon</strong> or <strong>Codester</strong>) and select <strong>WebotApp WhatsGateway</strong>.</li>
+          <li>Enter your marketplace <strong>Purchase Code</strong> or <strong>Order ID</strong> (found in your marketplace Downloads receipt).</li>
+          <li>Enter your Name, Email, and WhatsApp Phone Number.</li>
+          <li>Click <strong>"Verify Order & Issue Official License Key"</strong> to generate your unique key instantly.</li>
+        </ol>
+        <a href="https://lab.webotapp.com/activate" target="_blank" class="btn-activate">👉 Claim License Key on WebotApp Portal</a>
+      </div>
+
+      <div class="license-option">
+        <h4>Option B: Purchased Directly on WebotApp Lab</h4>
+        <p style="font-size: 13px; color: #94a3b8; margin-bottom: 4px;">
+          Your official license key is already generated and waiting in your account:
+        </p>
+        <ol style="font-size: 13px; color: #cbd5e1; margin-bottom: 0; padding-left: 20px;">
+          <li>Log in to your account at <a href="https://lab.webotapp.com/dashboard" target="_blank" style="color: #38bdf8;">https://lab.webotapp.com/dashboard</a>.</li>
+          <li>Navigate to the <strong>Downloads / Products</strong> tab.</li>
+          <li>Click <strong>"Copy License Key"</strong> next to WebotApp WhatsGateway.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>1. System Requirements</h2>
+      <ul>
+        <li><strong>Operating System:</strong> Ubuntu 20.04 / 22.04 LTS, Debian 11+, CentOS 8+, or macOS/Windows Server</li>
+        <li><strong>Node.js:</strong> v18.18.0 or v20.x LTS (Recommended)</li>
+        <li><strong>Database:</strong> MySQL 8.0+ or PostgreSQL 14+</li>
+        <li><strong>Process Manager:</strong> PM2 (Recommended for 24/7 background uptime)</li>
+        <li><strong>Hardware:</strong> Minimum 1 GB RAM (2 GB recommended for multi-session blast marketing)</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>2. Quick Setup & License Activation</h2>
+      <p>Follow these straightforward steps to deploy your instance:</p>
+
+      <h3>Step 1: Extract Files & Install Dependencies</h3>
+      <pre>unzip whats-gateway-v1.0.0.zip -d /var/www/whats-gateway
+cd /var/www/whats-gateway
+npm install</pre>
+
+      <h3>Step 2: Copy Environment Template</h3>
+      <pre>cp .env.example .env</pre>
+
+      <h3>Step 3: Launch Web Activation Wizard</h3>
+      <pre>npm run dev</pre>
+      <div class="alert">
+        <strong>Web Installer:</strong> Open your browser at <code>http://your-server-ip:3000/install</code>. Enter your WebotApp Purchase Code (<code>WEBOT-WA-REG-...</code> or <code>WEBOT-WA-EXT-...</code>) to activate your license and initialize the database wizard.
+      </div>
+    </div>
+
+    <!-- Default Administrator Credentials Section -->
+    <div class="card" style="border-color: rgba(16, 185, 129, 0.4); background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(6, 78, 59, 0.2));">
+      <h2>🔐 3. Default Administrator Login Credentials</h2>
+      <p>Once installation or database setup is completed, use the default administrator credentials to access your dashboard:</p>
+      
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin: 16px 0;">
+        <div style="background: rgba(2, 6, 23, 0.8); border: 1px solid #1e293b; border-radius: 12px; padding: 14px 18px;">
+          <span style="font-size: 11px; text-transform: uppercase; color: #94a3b8; font-weight: 700; letter-spacing: 0.5px;">Portal URL</span>
+          <div style="color: #38bdf8; font-weight: 800; font-size: 14px; margin-top: 4px;"><code>http://your-server-ip:3000/login</code></div>
+        </div>
+        <div style="background: rgba(2, 6, 23, 0.8); border: 1px solid #1e293b; border-radius: 12px; padding: 14px 18px;">
+          <span style="font-size: 11px; text-transform: uppercase; color: #94a3b8; font-weight: 700; letter-spacing: 0.5px;">Default Username / Email</span>
+          <div style="color: #10b981; font-weight: 800; font-size: 15px; margin-top: 4px;"><strong>admin@example.com</strong></div>
+        </div>
+        <div style="background: rgba(2, 6, 23, 0.8); border: 1px solid #1e293b; border-radius: 12px; padding: 14px 18px;">
+          <span style="font-size: 11px; text-transform: uppercase; color: #94a3b8; font-weight: 700; letter-spacing: 0.5px;">Default Password</span>
+          <div style="color: #f59e0b; font-weight: 800; font-size: 15px; margin-top: 4px;"><strong>admin123</strong></div>
+        </div>
+      </div>
+
+      <p style="font-size: 13px; color: #94a3b8; margin-top: 10px;">
+        💡 <strong>Tip / Custom Admin Setup:</strong> You can create or reset the administrator password directly from the command line at any time using:
+      </p>
+      <pre>node scripts/setup-admin.js admin@example.com admin123</pre>
+    </div>
+
+    <div class="card">
+      <h2>4. Production Deployment with PM2</h2>
+      <p>Build the Next.js production bundle and run the custom server in background mode:</p>
+      <pre>npm run build
+npm install -g pm2
+pm2 start ecosystem.config.js
+pm2 save
+pm2 startup</pre>
+    </div>
+
+    <div class="card">
+      <h2>5. Nginx Reverse Proxy with SSL</h2>
+      <p>Sample Nginx configuration for your custom domain (e.g. <code>whatsapp.yourdomain.com</code>):</p>
+      <pre>server {
+    server_name whatsapp.yourdomain.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+}</pre>
+    </div>
+
+    <div class="card">
+      <h2>6. Support & Professional Services</h2>
+      <p>Need installation assistance, customized chatbot workflows, or high-volume enterprise configurations?</p>
+      <ul>
+        <li><strong>Official Portal:</strong> <a href="https://lab.webotapp.com" style="color: var(--accent);">https://lab.webotapp.com</a></li>
+        <li><strong>WhatsApp Support:</strong> +91 7002484119</li>
+        <li><strong>Email:</strong> support@webotapp.com</li>
+      </ul>
+    </div>
+
+    <div class="footer">
+      © 2026 WebotApp Lab • All rights reserved. Proprietary Commercial Software.
+    </div>
+  </div>
+</body>
+</html>

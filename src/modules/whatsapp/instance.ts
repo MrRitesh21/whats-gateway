@@ -1,0 +1,477 @@
+import makeWASocket, {
+    DisconnectReason,
+    fetchLatestBaileysVersion,
+    makeCacheableSignalKeyStore,
+    WASocket,
+    ConnectionState
+} from "@whiskeysockets/baileys";
+import { prisma } from "@/lib/prisma";
+import { usePrismaAuthState } from "./auth/usePrismaAuthState";
+import { Server } from "socket.io";
+import pino from "pino";
+import { bindSessionStore } from "./store";
+import { syncGroups } from "./store/groups";
+import { bindContactSync } from "./store/contacts";
+import { bindAutoReply } from "./store/autoreply";
+import { bindAntiLink } from "./store/antilink";
+import { bindPpGuard } from "./store/ppguard";
+import { antispam } from "./antispam";
+import { antiban } from "./antiban";
+import { onConnectionUpdate } from "@/lib/webhook";
+import { logger } from "@/lib/logger";
+
+export class WhatsAppInstance {
+    socket: WASocket | null = null;
+    qr: string | null = null;
+    rq: string | null = null;
+    status: string = "DISCONNECTED";
+    sessionId: string;
+    userId: string;
+    io: Server;
+    config: any = {};
+    startTime: Date | null = null;
+    pairingCode: string | null = null;
+    private groupSyncInterval: NodeJS.Timeout | null = null;
+    private reconnectTimer: NodeJS.Timeout | null = null;
+    private reconnectAttempts: number = 0;
+
+    isStopped: boolean = false;
+
+    // Watchdog support:
+    // - autoReconnect: dimatikan saat sesi diambil alih koneksi lain (replaced)
+    //   supaya watchdog tidak memicu "perang koneksi". Dihidupkan lagi saat init.
+    // - initializing/lastInitAt: cegah watchdog double-init saat handshake berjalan.
+    autoReconnect: boolean = true;
+    initializing: boolean = false;
+    lastInitAt: number = 0;
+
+    get reconnectPending(): boolean {
+        return this.reconnectTimer !== null;
+    }
+
+    /**
+     * Cek apakah websocket Baileys benar-benar masih hidup.
+     * Kadang status internal "CONNECTED" tapi websocket sudah mati diam-diam
+     * (zombie) tanpa memicu event close → pesan gagal terkirim. Watchdog pakai
+     * ini untuk memaksa reconnect. Defensif: kalau tidak yakin, anggap hidup
+     * supaya tidak reconnect palsu.
+     */
+    isSocketAlive(): boolean {
+        try {
+            const ws: any = (this.socket as any)?.ws;
+            if (!ws) return false;
+            if (typeof ws.isOpen === "boolean") return ws.isOpen;
+            if (typeof ws.readyState === "number") return ws.readyState === 1; // 1 = OPEN
+            return true;
+        } catch {
+            return true;
+        }
+    }
+
+    constructor(sessionId: string, userId: string, io: Server) {
+        this.sessionId = sessionId;
+        this.userId = userId;
+        this.io = io;
+    }
+
+    async init() {
+        // Cryptographic license assertion - prevents execution if unactivated or tampered
+        const { assertRuntimeExecutionSeal } = await import("@/lib/license/integrity");
+        await assertRuntimeExecutionSeal();
+
+        // Init = kita memang ingin sesi ini hidup. Reset flag supaya:
+        // - sesi yang sebelumnya di-stop bisa start lagi (QR muncul),
+        // - sesi yang sebelumnya "replaced" boleh auto-reconnect lagi.
+        this.isStopped = false;
+        this.autoReconnect = true;
+        this.initializing = true;
+        this.lastInitAt = Date.now();
+
+        try {
+        const sessionData = await prisma.session.findUnique({
+            where: { sessionId: this.sessionId },
+            include: { botConfig: true }
+        });
+        this.config = sessionData?.config || {};
+        const botConfig = (sessionData as any)?.botConfig;
+
+        // usePrismaAuthState bukan React Hook — ini factory auth state Baileys.
+        // eslint-disable-next-line react-hooks/rules-of-hooks
+        const { state, saveCreds } = await usePrismaAuthState(this.sessionId);
+        const { version } = await fetchLatestBaileysVersion();
+
+        // Bersihin socket lama dulu sebelum bikin yang baru.
+        // Tanpa ini, tiap reconnect ninggalin "ghost socket" yang masih
+        // ngeluarin event (QR storm) → gejala "scan tapi gak konek / putus terus".
+        if (this.socket) {
+            try {
+                this.socket.ev.removeAllListeners("connection.update");
+                this.socket.ev.removeAllListeners("creds.update");
+                this.socket.end(undefined);
+            } catch { /* ignore */ }
+            this.socket = null;
+        }
+
+        // Force silent logger to prevent Baileys debug spam (Railway log rate limit)
+        const silentLogger = pino({ level: "silent" }) as any;
+
+        this.socket = makeWASocket({
+            version,
+            logger: silentLogger,
+            printQRInTerminal: false,
+            auth: {
+                creds: state.creds,
+                keys: makeCacheableSignalKeyStore(state.keys, silentLogger),
+            },
+            browser: ["Ubuntu", "Chrome", "20.0.04"],
+            markOnlineOnConnect: botConfig?.alwaysOnline ?? true,
+            syncFullHistory: false, // Use partial sync only
+        });
+
+        // Apply Anti-Spam Wrapper to sendMessage
+        // This wraps the socket's sendMessage so ALL outgoing messages go through the queue
+        const originalSendMessage = this.socket.sendMessage.bind(this.socket);
+        const sock = this.socket;
+        const sessionId = this.sessionId;
+        this.socket.sendMessage = async function (jid: string, content: any, options?: any) {
+            // Command interaktif (kick, ping, dll) pakai skipQueue:true → kirim
+            // instan tanpa delay "mengetik". Anti-ban hanya untuk auto-reply/broadcast.
+            if (options?.skipQueue) {
+                const { skipQueue, ...rest } = options;
+                return originalSendMessage(jid, content, rest);
+            }
+            // Anti-spam throttle (antri sesuai rate limit)
+            await antispam.enqueue(sessionId, jid, content);
+            // Anti-ban humanizer (presence "mengetik" + jeda manusiawi)
+            await antiban.humanize(sock, sessionId, jid, content);
+            return originalSendMessage(jid, content, options);
+        } as any;
+
+        // Bind Store for DB Sync (handles incoming messages)
+        bindSessionStore(this.socket, this.sessionId, this.io);
+
+        // Bind Contact Sync (handles contacts.update and messaging-history.set events)
+        bindContactSync(this.socket, this.sessionId);
+
+        this.socket.ev.on("creds.update", saveCreds);
+
+        this.socket.ev.on("connection.update", async (update) => {
+            await this.handleConnectionUpdate(update);
+        });
+        } finally {
+            this.initializing = false;
+        }
+    }
+
+    async handleConnectionUpdate(update: Partial<ConnectionState>) {
+        const { connection, lastDisconnect, qr } = update;
+
+        try {
+            if (qr) {
+                if (this.isStopped) return; // Don't emit QR if stopped
+                this.qr = qr;
+                this.status = "SCAN_QR";
+
+                // Emit QR to Socket Room
+                this.io?.to(this.sessionId).emit("connection.update", { sessionId: this.sessionId, status: this.status, qr });
+
+                // Update DB
+                await prisma.session.update({
+                    where: { sessionId: this.sessionId },
+                    data: { qr, status: "SCAN_QR" }
+                });
+            }
+
+            if (connection === "close") {
+                const code = (lastDisconnect?.error as any)?.output?.statusCode;
+                const isLoggedOut = code === DisconnectReason.loggedOut;
+                // connectionReplaced (440): sesi diambil alih device/instance LAIN
+                // (mis. app dibuka di tempat lain, atau 2 server pakai sesi yang sama).
+                const isReplaced = code === DisconnectReason.connectionReplaced;
+
+                // Stop the periodic group sync interval
+                if (this.groupSyncInterval) {
+                    clearInterval(this.groupSyncInterval);
+                    this.groupSyncInterval = null;
+                }
+
+                // Only reconnect if NOT logged out, NOT replaced, AND NOT explicitly stopped.
+                // Reconnect saat "replaced" = perang koneksi (konek-disconnect terus) → jangan.
+                const shouldReconnect = !isLoggedOut && !isReplaced && !this.isStopped;
+
+                // Determine status based on reason
+                if (isLoggedOut) {
+                    this.status = "LOGGED_OUT";
+                } else if (this.isStopped) {
+                    this.status = "STOPPED";
+                } else {
+                    this.status = "DISCONNECTED";
+                }
+
+                this.io?.to(this.sessionId).emit("connection.update", { sessionId: this.sessionId, status: this.status, qr: null });
+
+                // Webhook: beri tahu integrasi eksternal status terkini (tanpa QR).
+                onConnectionUpdate(this.sessionId, this.status);
+
+                // Use try-catch specifically for update as session might be deleted
+                try {
+                    await prisma.session.update({
+                        where: { sessionId: this.sessionId },
+                        data: { status: this.status, qr: null }
+                    });
+                } catch (e) {
+                    // Ignore if session not found (deleted)
+                }
+
+                if (shouldReconnect) {
+                    // Reconnect dengan jeda + backoff biar gak loop kenceng
+                    // (immediate reconnect = rate-limit dari server = putus terus).
+                    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+                    const delay = Math.min(30000, 3000 * (this.reconnectAttempts + 1));
+                    this.reconnectAttempts++;
+                    logger.info("Instance", `Session ${this.sessionId} reconnect dalam ${delay}ms (percobaan ke-${this.reconnectAttempts})`);
+                    this.reconnectTimer = setTimeout(() => {
+                        this.reconnectTimer = null;
+                        if (this.isStopped) return;
+                        this.init().catch(e => logger.error("Instance", "Reconnect gagal:", e));
+                    }, delay);
+                } else if (isLoggedOut) {
+                    // Explicit logout: delete credentials
+                    logger.info("Instance", `Session ${this.sessionId} logged out. Deleting credentials...`);
+                    try {
+                        await prisma.$transaction([
+                            prisma.session.update({
+                                where: { sessionId: this.sessionId },
+                                data: { status: "LOGGED_OUT", qr: null }
+                            }),
+                            prisma.authState.deleteMany({
+                                where: { sessionId: this.sessionId }
+                            })
+                        ]);
+                    } catch (e) { /* ignore */ }
+                    this.socket = null;
+                    this.config = {}; // Clear config cache
+                    logger.success("Instance", `Session ${this.sessionId} credentials deleted.`);
+                } else if (this.isStopped) {
+                    // Stopped: preserve credentials for future restart
+                    logger.warn("Instance", `Session ${this.sessionId} stopped. Credentials preserved for auto-login.`);
+                    this.socket = null;
+                } else if (isReplaced) {
+                    // Sesi diambil alih koneksi lain. JANGAN reconnect (hindari perang koneksi).
+                    // Credential TIDAK dihapus — user bisa Start lagi manual kalau memang mau pindah ke sini.
+                    this.autoReconnect = false; // watchdog juga tidak boleh reconnect otomatis
+                    logger.warn("Instance", `Session ${this.sessionId} digantikan koneksi lain (connectionReplaced). Reconnect dihentikan. Pastikan sesi WhatsApp ini tidak dipakai di tempat lain (mis. server lokal + Railway bersamaan), lalu Start ulang bila perlu.`);
+                    this.socket = null;
+                }
+            }
+
+
+            if (connection === "open") {
+                this.status = "CONNECTED";
+                this.qr = null;
+                this.startTime = new Date();
+
+                // Sukses konek: reset counter & batalin timer reconnect yang masih antri
+                this.reconnectAttempts = 0;
+                if (this.reconnectTimer) {
+                    clearTimeout(this.reconnectTimer);
+                    this.reconnectTimer = null;
+                }
+
+                this.io?.to(this.sessionId).emit("connection.update", { sessionId: this.sessionId, status: this.status, qr: null });
+
+                // Webhook: status CONNECTED ke integrasi eksternal.
+                onConnectionUpdate(this.sessionId, this.status);
+
+                // Sync Groups from WhatsApp (deferred by 15s so socket handshake stays lightweight)
+                setTimeout(() => {
+                    if (this.socket && !this.isStopped) {
+                        syncGroups(this.socket as WASocket, this.sessionId).catch((e) => {
+                            logger.error("Instance", "Group sync failed:", e);
+                        });
+                    }
+                }, 15000);
+
+                // Periodic resync every 30 minutes — saves CPU/RAM on limited environments
+                if (this.groupSyncInterval) clearInterval(this.groupSyncInterval);
+                this.groupSyncInterval = setInterval(async () => {
+                    if (!this.socket || this.isStopped) return;
+                    try {
+                        await syncGroups(this.socket as WASocket, this.sessionId);
+                    } catch (e) {
+                        logger.debug("Instance", "Periodic group sync failed (non-fatal)", e);
+                    }
+                }, 30 * 60 * 1000);
+
+                // Sync Newsletter/Channel names
+                this.syncNewsletterNames().catch(e => {
+                    logger.error("Instance", "Newsletter sync failed:", e);
+                });
+
+                // Bind Auto Reply (only if socket still exists)
+                if (this.socket) {
+                    bindAutoReply(this.socket as WASocket, this.sessionId);
+                }
+
+                // Bind Anti-Link (group link blocker)
+                if (this.socket) {
+                    bindAntiLink(this.socket as WASocket, this.sessionId);
+                }
+
+                // Bind PP Guard (only if socket still exists)
+                if (this.socket) {
+                    bindPpGuard(this.socket as WASocket, this.sessionId);
+                }
+
+                await prisma.session.update({
+                    where: { sessionId: this.sessionId },
+                    data: { status: "CONNECTED", qr: null }
+                });
+
+                logger.success("Instance", `Session ${this.sessionId} connected and synced successfully`);
+            }
+        } catch (error: any) {
+            // Catch global errors in handler (like Record Not Found if session deleted mid-process)
+            if (error.code === 'P2025') {
+                logger.warn("Instance", `Session ${this.sessionId} record not found during update. Stopping instance.`);
+                try {
+                    // Defer to break circular import — manager already imports from instance
+                    const { waManager } = await import("./manager");
+                    waManager.cleanupOrphanInstance(this.sessionId);
+                } catch {
+                    this.socket?.end(undefined);
+                    this.socket = null;
+                }
+            } else {
+                logger.error("Instance", "Error in handleConnectionUpdate:", error);
+            }
+        }
+    }
+
+    async requestPairingCode(phoneNumber: string) {
+        if (!this.socket) {
+            throw new Error("Socket not initialized");
+        }
+
+        try {
+            // Validate phone number (basic check)
+            const cleanNumber = phoneNumber.replace(/[^0-9]/g, '');
+            if (!cleanNumber) throw new Error("Invalid phone number");
+
+            const code = await this.socket.requestPairingCode(cleanNumber);
+            this.pairingCode = code;
+            this.status = "SCAN_QR"; // Or specialized status? "PAIRING" is better but SCAN_QR triggers the right UI blocks usually
+
+            // Emit update
+            this.io?.to(this.sessionId).emit("connection.update", {
+                sessionId: this.sessionId,
+                status: this.status,
+                qr: this.qr,
+                pairingCode: code
+            });
+
+            return code;
+        } catch (error) {
+            logger.error("Instance", "Pairing code error:", error);
+            throw error;
+        }
+    }
+
+    /**
+     * Sync newsletter/channel names from WhatsApp.
+     * Fetches metadata for all newsletter JIDs that don't have a name in the database.
+     */
+    private async syncNewsletterNames() {
+        if (!this.socket) return;
+
+        // Wait a bit for history sync to complete first
+        await new Promise(resolve => setTimeout(resolve, 5000));
+
+        const session = await prisma.session.findUnique({
+            where: { sessionId: this.sessionId },
+            select: { id: true }
+        });
+        if (!session) return;
+
+        // Find all newsletter JIDs from messages
+        const newsletterMessages = await prisma.message.findMany({
+            where: {
+                sessionId: session.id,
+                remoteJid: { endsWith: "@newsletter" }
+            },
+            distinct: ['remoteJid'],
+            select: { remoteJid: true }
+        });
+
+        // Also check contacts table for newsletters
+        const newsletterContacts = await prisma.contact.findMany({
+            where: {
+                sessionId: session.id,
+                jid: { endsWith: "@newsletter" }
+            },
+            select: { jid: true, name: true }
+        });
+
+        const contactNameMap = new Map(newsletterContacts.map(c => [c.jid, c.name]));
+
+        // Collect all newsletter JIDs
+        const allNewsletterJids = new Set([
+            ...newsletterMessages.map(m => m.remoteJid),
+            ...newsletterContacts.map(c => c.jid)
+        ]);
+
+        // Filter out ones that already have names
+        const jidsNeedingNames = Array.from(allNewsletterJids).filter(jid => !contactNameMap.get(jid));
+
+        logger.info("Instance", `Newsletter sync: ${allNewsletterJids.size} total, ${jidsNeedingNames.length} need names (session: ${this.sessionId})`);
+
+        if (jidsNeedingNames.length === 0) return;
+
+        let synced = 0;
+        for (const jid of jidsNeedingNames) {
+            if (!this.socket) break; // Socket might disconnect during sync
+            try {
+                const metadata = await this.socket.newsletterMetadata("jid", jid);
+                // Handle different response formats from Baileys
+                let channelName: string | null = null;
+                if (metadata) {
+                    if (typeof metadata.name === 'string' && metadata.name) {
+                        channelName = metadata.name;
+                    } else if ((metadata as any).thread_metadata?.name?.text) {
+                        channelName = (metadata as any).thread_metadata.name.text;
+                    } else if ((metadata as any).thread_metadata?.name && typeof (metadata as any).thread_metadata.name === 'string') {
+                        channelName = (metadata as any).thread_metadata.name;
+                    }
+                }
+
+                if (channelName) {
+                    await prisma.contact.upsert({
+                        where: { sessionId_jid: { sessionId: session.id, jid } },
+                        create: {
+                            sessionId: session.id,
+                            jid,
+                            name: channelName,
+                            notify: channelName,
+                            profilePic: metadata?.picture?.url || (metadata?.picture as any)?.directPath || null
+                        },
+                        update: {
+                            name: channelName,
+                            notify: channelName,
+                            profilePic: metadata?.picture?.url || (metadata?.picture as any)?.directPath || undefined
+                        }
+                    });
+                    synced++;
+                    logger.info("Instance", `Newsletter "${channelName}" (${jid})`);
+                } else {
+                    logger.warn("Instance", `Newsletter ${jid}: no name in response: ${JSON.stringify(metadata).slice(0, 300)}`);
+                }
+                // Small delay to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, 500));
+            } catch (e: any) {
+                logger.warn("Instance", `Newsletter ${jid} failed: ${e.message || e}`);
+            }
+        }
+
+        logger.success("Instance", `Newsletter sync done: ${synced}/${jidsNeedingNames.length} names fetched`);
+    }
+}

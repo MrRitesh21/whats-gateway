@@ -1,0 +1,290 @@
+import Link from "next/link";
+import { ArrowRight, Bot, Zap, Shield, Globe, MessageSquare, Clock, Code, ChevronRight, Sparkles, Activity, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { LandingNav } from "@/components/landing/landing-nav";
+import { PricingCards } from "@/components/landing/pricing";
+import { headers } from "next/headers";
+import fs from "fs";
+import path from "path";
+
+// Harga plan bisa diubah SUPERADMIN dan disimpan di DB. Halaman ini HARUS dynamic
+// supaya selalu membaca harga terbaru, bukan versi statis hasil build.
+export const dynamic = "force-dynamic";
+
+export const metadata = {
+  title: "WebotApp WhatsApp | WhatsApp Gateway & Automation",
+  description: "Build, automate, and scale your WhatsApp communication. Multi-session management, smart auto-replies, scheduled broadcasts, and REST API integration.",
+  openGraph: {
+    title: "WebotApp WhatsApp | WhatsApp Gateway & Automation",
+    description: "Self-hosted WhatsApp Gateway with Multi-device support, Auto-replies, and API integration by WebotApp WhatsApp.",
+    type: "website",
+  },
+};
+
+export default async function Home() {
+  const packagePath = path.join(process.cwd(), "package.json");
+  let version = "v1.2.0";
+  try {
+    const packageJson = JSON.parse(fs.readFileSync(packagePath, "utf8"));
+    version = `v${packageJson.version}`;
+  } catch (error) {
+    console.error("Failed to read package.json", error);
+  }
+
+  // Domain aktif (ikut host yang sedang dipakai), untuk mockup window bar.
+  const hdrs = await headers();
+  const host = hdrs.get("x-forwarded-host") || hdrs.get("host") || "dashboard";
+
+  return (
+    <div className="flex min-h-screen flex-col overflow-hidden selection:bg-primary/30 selection:text-primary-foreground">
+      <LandingNav />
+
+      <main className="flex-1">
+        {/* ============ HERO ============ */}
+        <section className="relative pt-24 pb-16 sm:pt-36 sm:pb-28 lg:pt-44 lg:pb-36 overflow-hidden">
+          {/* Grid + ambient orbs */}
+          <div className="absolute inset-0 bg-grid pointer-events-none" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[50rem] h-[50rem] bg-blue-500/20 dark:bg-blue-600/10 rounded-full blur-[120px] animate-float pointer-events-none" />
+          <div className="absolute bottom-0 right-0 w-[34rem] h-[34rem] bg-cyan-500/20 dark:bg-cyan-600/10 rounded-full blur-[120px] animate-float pointer-events-none" style={{ animationDelay: "2s" }} />
+
+          <div className="container px-4 md:px-6 relative z-10">
+            <div className="flex flex-col items-center text-center space-y-6 sm:space-y-8 max-w-4xl mx-auto">
+              <div className="inline-flex items-center rounded-full glass-panel px-3.5 py-1 sm:px-4 sm:py-1.5 text-xs sm:text-sm font-medium text-foreground/80 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                <span className="relative flex h-2 w-2 mr-2.5 sm:mr-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
+                </span>
+                Release {version} is live
+                <ChevronRight className="h-4 w-4 ml-1 opacity-50" />
+              </div>
+
+              <h1 className="text-3xl min-[400px]:text-4xl sm:text-6xl md:text-7xl lg:text-[5.5rem] font-extrabold tracking-tight sm:tracking-tighter leading-[1.05] sm:leading-[0.95] animate-in fade-in slide-in-from-bottom-6 duration-700">
+                <span className="block text-foreground pb-1">WhatsApp Gateway</span>
+                <span className="text-gradient-animate block pb-2">for modern businesses.</span>
+              </h1>
+
+              <p className="mx-auto max-w-2xl text-muted-foreground text-sm sm:text-lg md:text-xl leading-relaxed animate-in fade-in slide-in-from-bottom-6 duration-700 delay-150">
+                Manage multi-device WhatsApp sessions, smart auto-replies, scheduled broadcasts, and REST API integrations — all in one fast, elegant dashboard.
+              </p>
+
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-2 w-full sm:w-auto px-2 sm:px-4 animate-in fade-in slide-in-from-bottom-6 duration-700 delay-300">
+                <Link href="/dashboard" className="w-full sm:w-auto">
+                  <Button size="lg" className="w-full h-12 sm:h-14 px-8 rounded-full text-sm sm:text-base shadow-2xl shadow-primary/30 hover:shadow-primary/40 group">
+                    Get Started
+                    <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
+                  </Button>
+                </Link>
+                <Link href="/docs" className="w-full sm:w-auto">
+                  <Button size="lg" variant="glass" className="w-full h-12 sm:h-14 px-8 rounded-full text-sm sm:text-base transition-all hover:bg-white/40 dark:hover:bg-white/10">
+                    View Documentation
+                  </Button>
+                </Link>
+              </div>
+            </div>
+
+            {/* Dashboard preview mockup */}
+            <div className="relative mt-12 sm:mt-16 lg:mt-20 max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-500">
+              <div className="absolute -inset-x-8 -top-8 bottom-0 bg-gradient-to-t from-primary/20 to-transparent blur-3xl -z-10" />
+              <div className="glow-border glass rounded-3xl p-1.5 sm:p-2 shadow-2xl shadow-black/10 dark:shadow-black/40">
+                <div className="rounded-2xl overflow-hidden border border-border bg-background/60">
+                  {/* Fake window bar */}
+                  <div className="flex items-center gap-2 px-3 sm:px-4 h-9 sm:h-10 border-b border-border bg-muted/40">
+                    <span className="h-2.5 w-2.5 sm:h-3 sm:w-3 rounded-full bg-red-400/70" />
+                    <span className="h-2.5 w-2.5 sm:h-3 sm:w-3 rounded-full bg-amber-400/70" />
+                    <span className="h-2.5 w-2.5 sm:h-3 sm:w-3 rounded-full bg-emerald-400/70" />
+                    <span className="ml-2 sm:ml-3 text-xs text-muted-foreground font-mono truncate">{host}/dashboard</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 p-3.5 sm:p-7">
+                    <MockStat icon={<Activity className="h-4 w-4 text-sky-500" />} label="Active Sessions" value="12" />
+                    <MockStat icon={<MessageSquare className="h-4 w-4 text-blue-500" />} label="Messages Today" value="8,420" />
+                    <MockStat icon={<Users className="h-4 w-4 text-gray-500" />} label="Contacts" value="3,191" />
+                    <div className="col-span-1 sm:col-span-3 h-24 sm:h-36 rounded-xl bg-gradient-to-br from-primary/10 via-blue-500/5 to-transparent border border-border flex items-end gap-1.5 p-3 sm:p-4">
+                      {[40, 65, 35, 80, 55, 95, 60, 75, 45, 88, 70, 50].map((h, i) => (
+                        <div key={i} className="flex-1 rounded-t bg-gradient-to-t from-primary to-cyan-400/60" style={{ height: `${h}%` }} />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ============ STATS BAR ============ */}
+        <section className="relative border-y border-border bg-muted/30">
+          <div className="container px-4 md:px-6 py-10">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-5xl mx-auto text-center">
+              <StatItem value="99.9%" label="Uptime" />
+              <StatItem value="<200ms" label="API Latency" />
+              <StatItem value="Multi" label="Device Support" />
+              <StatItem value="24/7" label="Automation" />
+            </div>
+          </div>
+        </section>
+
+        {/* ============ FEATURES ============ */}
+        <section id="features" className="py-28 lg:py-32 relative overflow-hidden">
+          <div className="absolute top-1/2 left-0 w-[30rem] h-[30rem] bg-primary/10 rounded-full blur-[120px] -translate-y-1/2 pointer-events-none" />
+          <div className="container px-4 md:px-6 relative z-10">
+            <div className="text-center mb-16 max-w-2xl mx-auto">
+              <div className="inline-flex items-center gap-2 rounded-full glass-panel px-4 py-1.5 text-sm font-medium text-primary mb-5">
+                <Sparkles className="h-4 w-4" /> Key Features
+              </div>
+              <h2 className="text-3xl font-bold tracking-tight sm:text-5xl mb-5 text-foreground">Engineered for Scale</h2>
+              <p className="text-muted-foreground text-lg">
+                Complete enterprise automation capabilities delivered in an intuitive, high-performance interface.
+              </p>
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 max-w-6xl mx-auto">
+              <FeatureCard
+                icon={<Zap className="h-6 w-6 text-amber-500" />}
+                title="Instant API & Webhooks"
+                description="Send text, rich media, and capture incoming events in real time with our high-throughput REST API."
+              />
+              <FeatureCard
+                icon={<MessageSquare className="h-6 w-6 text-blue-500" />}
+                title="Smart Auto-Reply"
+                description="Configure context-aware keyword triggers to answer inquiries and assist customers around the clock."
+              />
+              <FeatureCard
+                icon={<Clock className="h-6 w-6 text-gray-500" />}
+                title="Precision Scheduler"
+                description="Plan and schedule messages with attached media for precise delivery in Indian Standard Time."
+              />
+              <FeatureCard
+                icon={<Shield className="h-6 w-6 text-blue-500" />}
+                title="Private & Dedicated"
+                description="Dedicated self-hosted architecture ensures all authentication credentials and messages stay strictly yours."
+              />
+              <FeatureCard
+                icon={<Code className="h-6 w-6 text-rose-500" />}
+                title="Developer Ready"
+                description="Built on TypeScript with comprehensive OpenAPI / Swagger specifications for frictionless integration."
+              />
+              <FeatureCard
+                icon={<Globe className="h-6 w-6 text-cyan-500" />}
+                title="Multi-Session Control"
+                description="Connect, monitor, and drive multiple WhatsApp business numbers simultaneously from one workspace."
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* ============ PRICING ============ */}
+        <section id="pricing" className="py-28 lg:py-32 relative">
+          <div className="container px-4 md:px-6 relative z-10">
+            <div className="text-center mb-14 max-w-2xl mx-auto">
+              <div className="inline-flex items-center gap-2 rounded-full glass-panel px-4 py-1.5 text-sm font-medium text-primary mb-5">
+                <Sparkles className="h-4 w-4" /> Plans & Pricing
+              </div>
+              <h2 className="text-3xl font-bold tracking-tight sm:text-5xl mb-5 text-foreground">Simple & Transparent</h2>
+              <p className="text-muted-foreground text-lg">
+                Start with our free tier or scale with premium plans customized for your growth.
+              </p>
+            </div>
+            <PricingCards ctaHref="/auth/login" />
+            <p className="text-center text-sm text-muted-foreground mt-8">
+              All plans include complete REST API access. Quotas are calculated per API request.
+            </p>
+          </div>
+        </section>
+
+        {/* ============ TECH STACK ============ */}
+        <section className="py-20 relative overflow-hidden">
+          <div className="container px-4 md:px-6 text-center">
+            <p className="text-sm font-semibold text-muted-foreground uppercase tracking-widest mb-10">Built with industry-standard technologies</p>
+            <div className="flex flex-wrap justify-center gap-10 md:gap-16 opacity-60 hover:opacity-100 transition-opacity duration-500">
+              <span className="text-xl md:text-2xl font-bold flex items-center gap-3 text-foreground tracking-tight"><div className="h-3 w-3 rounded-full bg-foreground shadow-[0_0_10px_currentColor]" />Next.js</span>
+              <span className="text-xl md:text-2xl font-bold flex items-center gap-3 text-foreground tracking-tight"><div className="h-3 w-3 rounded-full bg-blue-500 shadow-[0_0_10px_currentColor]" />TypeScript</span>
+              <span className="text-xl md:text-2xl font-bold flex items-center gap-3 text-foreground tracking-tight"><div className="h-3 w-3 rounded-full bg-indigo-500 shadow-[0_0_10px_currentColor]" />Baileys</span>
+              <span className="text-xl md:text-2xl font-bold flex items-center gap-3 text-foreground tracking-tight"><div className="h-3 w-3 rounded-full bg-teal-500 shadow-[0_0_10px_currentColor]" />Prisma</span>
+            </div>
+          </div>
+        </section>
+
+        {/* ============ CTA BANNER ============ */}
+        <section className="py-20 relative">
+          <div className="container px-4 md:px-6">
+            <div className="glow-border relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-primary/15 via-blue-500/10 to-transparent border border-border px-8 py-16 md:px-16 md:py-20 text-center max-w-5xl mx-auto">
+              <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-[30rem] h-[30rem] bg-primary/20 rounded-full blur-[120px] pointer-events-none" />
+              <div className="relative z-10 flex flex-col items-center gap-6">
+                <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight text-foreground max-w-2xl">
+                  Ready to Automate Your WhatsApp Workflows?
+                </h2>
+                <p className="text-muted-foreground text-lg max-w-xl">
+                  Create your free account in minutes and connect your first WhatsApp session right away.
+                </p>
+                <Link href="/auth/login">
+                  <Button size="lg" className="h-14 px-10 rounded-full text-base shadow-2xl shadow-primary/30 hover:shadow-primary/40 group">
+                    Get Started Free
+                    <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer className="border-t border-border/50 bg-background/50 backdrop-blur-xl py-12 relative z-10">
+        <div className="container px-4 md:px-6 max-w-6xl mx-auto">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-8">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-primary/10">
+                <Bot className="h-6 w-6 text-primary" />
+              </div>
+              <span className="text-xl font-bold text-foreground" translate="no">WebotApp WhatsApp</span>
+            </div>
+            <div className="flex gap-8 text-sm font-medium">
+              <Link href="https://webotapp.com" target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">WebotApp.com</Link>
+              <Link href="/privacy" className="text-muted-foreground hover:text-foreground transition-colors">Privacy</Link>
+              <Link href="/terms" className="text-muted-foreground hover:text-foreground transition-colors">Terms</Link>
+              <Link href="/docs" className="text-muted-foreground hover:text-foreground transition-colors">API &amp; Docs</Link>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              © {new Date().getFullYear()} <span translate="no">WebotApp WhatsApp</span>. All rights reserved.
+            </p>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+function MockStat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-border bg-background/60 p-3 sm:p-4">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1.5">
+        {icon}
+        <span className="truncate">{label}</span>
+      </div>
+      <p className="text-lg sm:text-2xl font-bold text-foreground tracking-tight">{value}</p>
+    </div>
+  );
+}
+
+function StatItem({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="flex flex-col items-center">
+      <span className="text-3xl md:text-4xl font-extrabold text-gradient tracking-tight">{value}</span>
+      <span className="text-sm text-muted-foreground mt-1">{label}</span>
+    </div>
+  );
+}
+
+function FeatureCard({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
+  return (
+    <div className="group relative p-7 glass-panel glow-border rounded-[1.75rem] hover-lift shimmer overflow-hidden">
+      <div className="relative z-10">
+        <div className="mb-5 inline-flex p-3.5 rounded-2xl bg-background/60 backdrop-blur-md shadow-sm border border-border group-hover:scale-110 transition-transform duration-500 ease-out">
+          {icon}
+        </div>
+        <h3 className="text-xl font-bold mb-2.5 text-foreground tracking-tight">{title}</h3>
+        <p className="text-muted-foreground text-[0.95rem] leading-relaxed">
+          {description}
+        </p>
+      </div>
+    </div>
+  );
+}

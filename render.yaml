@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: whats-gateway
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_OPTIONS
+        value: "--max-old-space-size=384 --optimize-for-size --expose-gc"
+      - key: TZ
+        value: Asia/Kolkata
+      - key: PORT
+        value: "3030"
+      - key: DATABASE_URL
+        sync: false          # Supabase Postgres URL
+      - key: AUTH_SECRET
+        sync: false
+      - key: AUTH_TRUST_HOST
+        value: "true"
+      - key: BASE_URL
+        sync: false
+      - key: NEXTAUTH_URL
+        sync: false
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
