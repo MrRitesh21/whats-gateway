@@ -36,22 +36,22 @@ export class ChatService {
         `;
 
         const lastMessageMap = new Map<string, { content: string | null; timestamp: Date; type: string }>();
-        lastMessages.forEach(m => lastMessageMap.set(m.remoteJid, m));
+        lastMessages.forEach((m: { remoteJid: string; content: string | null; timestamp: Date; type: string }) => lastMessageMap.set(m.remoteJid, m));
 
         const allJids = new Set([
-            ...contacts.map(c => c.jid),
-            ...groups.map(g => g.jid),
-            ...lastMessages.map(m => m.remoteJid)
+            ...contacts.map((c: { jid: string }) => c.jid),
+            ...groups.map((g: { jid: string }) => g.jid),
+            ...lastMessages.map((m: { remoteJid: string }) => m.remoteJid)
         ]);
 
         // Ensure all newsletter contacts appear in the list even without messages
-        contacts.filter(c => c.jid.endsWith("@newsletter")).forEach(c => allJids.add(c.jid));
+        contacts.filter((c: { jid: string }) => c.jid.endsWith("@newsletter")).forEach((c: { jid: string }) => allJids.add(c.jid));
 
         const jidMap = await batchResolveToPhoneJid(Array.from(allJids), dbSessionId);
 
         const contactMap = new Map();
-        contacts.forEach(c => contactMap.set(c.jid, c));
-        groups.forEach(g => {
+        contacts.forEach((c: any) => contactMap.set(c.jid, c));
+        groups.forEach((g: any) => {
             const existing = contactMap.get(g.jid);
             contactMap.set(g.jid, {
                 jid: g.jid,
@@ -78,7 +78,7 @@ export class ChatService {
                 select: { remoteJid: true, pushName: true },
                 orderBy: { timestamp: 'desc' }
             });
-            newsletterNames.forEach(m => {
+            newsletterNames.forEach((m: { remoteJid: string; pushName: string | null }) => {
                 if (m.pushName) {
                     const existing = contactMap.get(m.remoteJid);
                     if (existing) {
@@ -107,7 +107,7 @@ export class ChatService {
                 select: { remoteJid: true, pushName: true },
                 orderBy: { timestamp: 'desc' }
             });
-            fallbackNames.forEach(m => {
+            fallbackNames.forEach((m: { remoteJid: string; pushName: string | null }) => {
                 if (m.pushName) {
                     const existing = contactMap.get(m.remoteJid);
                     if (existing) {
@@ -180,7 +180,7 @@ export class ChatService {
 
         // Deduplicate unified list
         const uniqueChats = new Map();
-        chatList.forEach(chat => {
+        chatList.forEach((chat: any) => {
             const existing = uniqueChats.get(chat.jid);
             if (!existing) {
                 uniqueChats.set(chat.jid, chat);
@@ -201,7 +201,7 @@ export class ChatService {
 
         const finalChats = Array.from(uniqueChats.values());
 
-        finalChats.sort((a, b) => {
+        finalChats.sort((a: any, b: any) => {
             const tA = a.lastMessage?.timestamp ? new Date(a.lastMessage.timestamp).getTime() : 0;
             const tB = b.lastMessage?.timestamp ? new Date(b.lastMessage.timestamp).getTime() : 0;
             return tB - tA;
