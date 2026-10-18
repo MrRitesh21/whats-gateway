@@ -42,8 +42,23 @@ export async function POST(
             return NextResponse.json({ status: false, error: "Session not found" }, { status: 404 });
         }
 
-        const instance = waManager.getInstance(sessionRecord.sessionId) || waManager.getInstance(sessionId) || waManager.getInstance(sessionRecord.id);
-        if (!instance || !instance.socket) {
+        let instance = waManager.getInstance(sessionRecord.sessionId) || waManager.getInstance(sessionId) || waManager.getInstance(sessionRecord.id);
+        if (!instance || !instance.socket || instance.status !== "CONNECTED") {
+            const credsRecord = await prisma.authState.findFirst({
+                where: { sessionId: sessionRecord.sessionId, key: "creds-me" }
+            });
+            if (credsRecord && sessionRecord.status !== "STOPPED") {
+                logger.info("ChatAPI", `Auto-starting session ${sessionRecord.sessionId} on host...`);
+                await waManager.startSession(sessionRecord.sessionId).catch((e: any) => logger.warn("ChatAPI", "startSession failed", e));
+                instance = waManager.getInstance(sessionRecord.sessionId);
+                for (let i = 0; i < 5; i++) {
+                    if (instance?.status === "CONNECTED" && instance?.socket) break;
+                    await new Promise((r) => setTimeout(r, 1000));
+                }
+            }
+        }
+
+        if (!instance || !instance.socket || instance.status !== "CONNECTED") {
             return NextResponse.json({
                 status: false,
                 error: `WhatsApp session is not active on this host (Status: ${instance?.status || sessionRecord.status})`

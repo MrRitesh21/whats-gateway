@@ -8,19 +8,24 @@ export async function POST(
     { params }: { params: Promise<{ sessionId: string, action: string }> }
 ) {
     try {
-        const user = await getAuthenticatedUser(request);
-        if (!user) {
-            return NextResponse.json({ status: false, message: "Unauthorized", error: "Unauthorized" }, { status: 401 });
-        }
+        const internalSecret = request.headers.get("x-internal-secret");
+        const isInternalAuth = internalSecret && process.env.AUTH_SECRET && internalSecret === process.env.AUTH_SECRET;
 
         const resolvedParams = await params;
         const sessionId = resolvedParams.sessionId;
         const action = resolvedParams.action;
 
-        // Verify access
-        const canAccess = await canAccessSession(user.id, user.role, sessionId);
-        if (!canAccess) {
-            return NextResponse.json({ status: false, message: "Forbidden - Cannot access this session", error: "Forbidden - Cannot access this session" }, { status: 403 });
+        if (!isInternalAuth) {
+            const user = await getAuthenticatedUser(request);
+            if (!user) {
+                return NextResponse.json({ status: false, message: "Unauthorized", error: "Unauthorized" }, { status: 401 });
+            }
+
+            // Verify access
+            const canAccess = await canAccessSession(user.id, user.role, sessionId);
+            if (!canAccess) {
+                return NextResponse.json({ status: false, message: "Forbidden - Cannot access this session", error: "Forbidden - Cannot access this session" }, { status: 403 });
+            }
         }
 
         // Validate Action

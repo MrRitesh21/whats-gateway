@@ -58,14 +58,28 @@ async function getSessionInstance(sessionId: string): Promise<WhatsAppInstance |
     instance = waManager.getInstance(sessionRecord.sessionId) || waManager.getInstance(sessionRecord.id);
     if (instance?.socket) return instance;
 
-    // Auto-revive in-memory instance if DB says CONNECTED but memory was cleared (e.g. Next.js Turbopack fast refresh)
-    if (sessionRecord.status === "CONNECTED" && !instance) {
-        logger.info("Chat", `Auto-recovering in-memory socket instance for session ${sessionRecord.sessionId} (${sessionRecord.name})...`);
+    // Auto-revive or start in-memory instance if credentials exist in DB and session is not explicitly STOPPED
+    const credsRecord = await prisma.authState.findFirst({
+        where: {
+            sessionId: sessionRecord.sessionId,
+            key: "creds-me"
+        }
+    });
+
+    if (credsRecord && sessionRecord.status !== "STOPPED" && (!instance || instance.status !== "CONNECTED")) {
+        logger.info("Chat", `Auto-recovering socket instance for session ${sessionRecord.sessionId} (${sessionRecord.name})...`);
         const io = (global as any).io || (waManager as any).io;
         if (io) {
-            instance = new WhatsAppInstance(sessionRecord.sessionId, sessionRecord.userId, io);
-            (waManager as any).sessions.set(sessionRecord.sessionId, instance);
-            await instance.init().catch((e: any) => logger.error("Chat", "Auto-revive failed", e));
+            try {
+                await waManager.startSession(sessionRecord.sessionId);
+                instance = waManager.getInstance(sessionRecord.sessionId);
+                for (let i = 0; i < 5; i++) {
+                    if (instance?.status === "CONNECTED" && instance?.socket) break;
+                    await new Promise((r) => setTimeout(r, 1000));
+                }
+            } catch (e: any) {
+                logger.warn("Chat", "Auto-start failed:", e?.message);
+            }
         }
     }
 
@@ -441,17 +455,21 @@ export async function syncChatHistory(sessionId: string, jid: string) {
             }
         }
 
-        // Return up to 500 messages from DB gracefully without crashing
-        const fallbackMessages = await ChatService.getMessages(dbSessionId, jid, 500);
-        const displayStatus = instance?.status || sessionRecord.status;
-        return {
-            success: false,
-            warning: `WhatsApp session "${sessionRecord.name || sessionId}" is not connected (Status: ${displayStatus}). Loaded ${fallbackMessages.length} saved messages. Please check Sessions / QR menu to reconnect.`,
-            messages: fallbackMessages.map((msg: any) => ({
-                ...msg,
-                timestamp: msg.timestamp.toISOString()
-            }))
-        };
+        // Try recovering/starting the instance if not active
+        instance = await getSessionInstance(sessionId);
+        if (!instance || !instance.socket || instance.status !== "CONNECTED") {
+            // Return up to 500 messages from DB gracefully without crashing
+            const fallbackMessages = await ChatService.getMessages(dbSessionId, jid, 500);
+            const displayStatus = instance?.status || sessionRecord.status;
+            return {
+                success: false,
+                warning: `WhatsApp session "${sessionRecord.name || sessionId}" is not connected (Status: ${displayStatus}). Loaded ${fallbackMessages.length} saved messages. Please check Sessions / QR menu to reconnect.`,
+                messages: fallbackMessages.map((msg: any) => ({
+                    ...msg,
+                    timestamp: msg.timestamp.toISOString()
+                }))
+            };
+        }
     }
 
     // Find the oldest message we have in the database for this chat
@@ -479,6 +497,9 @@ export async function syncChatHistory(sessionId: string, jid: string) {
         : Date.now();
 
     try {
+        if (!instance?.socket) {
+            throw new Error("WhatsApp socket not ready");
+        }
         logger.info("Chat", `Requesting earlier message history for ${jid} from WhatsApp phone...`);
         // Request history from WhatsApp phone (50 messages per query)
         await (instance.socket as any).fetchMessageHistory(50, oldestKey as any, oldestTimestampMs);
