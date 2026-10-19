@@ -22,18 +22,18 @@ export default async function DashboardLayout({
     children: React.ReactNode;
 }) {
     const session = await auth();
-    
+
     // Redirect to login if no valid session
     if (!session?.user) {
         redirect("/auth/login");
     }
-    
+
     // Deep license verification gate - redirect immediately if not activated
     const licenseCheck = await validateSystemLicense();
     if (!licenseCheck.valid) {
         redirect("/activate");
     }
-    
+
     // Select hanya kolom yang dipakai → aman walau ada kolom baru yang belum di-`db push`
     let systemConfig: { appName: string | null; enableRegistration: boolean } | null = null;
     try {
@@ -44,7 +44,7 @@ export default async function DashboardLayout({
     } catch (e) {
         console.error("DashboardLayout: gagal baca systemConfig", e);
     }
-    const appName = systemConfig?.appName || "WebotApp WhatsApp";
+    const appName = systemConfig?.appName || "WAFlow WhatsApp";
     const registrationEnabled = systemConfig?.enableRegistration ?? true;
 
     return (

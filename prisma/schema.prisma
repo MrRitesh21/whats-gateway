@@ -255,7 +255,7 @@ model BotConfig {
   enabled       Boolean  @default(true)
   
   // Bot Command Access
-  botName       String   @default("WebotApp WhatsApp Bot")
+  botName       String   @default("WAFlow WhatsApp Bot")
   botMode       AccessMode @default(OWNER)
   botAllowedJids Json?     // Array of JIDs ["628123@s.whatsapp.net"]
   botBlockedJids Json?     // Array of JIDs ["628123@s.whatsapp.net"] for BLACKLIST mode
@@ -307,7 +307,7 @@ model BotConfig {
 
 model SystemConfig {
   id                 String   @id @default("default") // Singleton ID
-  appName            String   @default("WebotApp WhatsApp")
+  appName            String   @default("WAFlow WhatsApp")
   logoUrl            String?
   faviconUrl         String?
   timezone           String   @default("Asia/Kolkata")

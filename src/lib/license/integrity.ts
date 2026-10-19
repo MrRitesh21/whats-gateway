@@ -2,7 +2,7 @@ import * as crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 
 const CORE_INTEGRITY_SALT = process.env.LICENSE_INTEGRITY_SALT || "wb_wa_core_sec_89df7a2c8901e";
-const LAB_API_BASE = process.env.LAB_API_BASE || "https://lab.webotapp.com/api";
+const LAB_API_BASE = process.env.LAB_API_BASE || "https://lab.WAFlow.com/api";
 const PRODUCT_SLUG = "whats-gateway-multi-device-api";
 const PRODUCT_NAME = "WhatsGateway WhatsApp";
 
@@ -141,13 +141,13 @@ export async function validateSystemLicense(currentHost?: string): Promise<Licen
             await prisma.systemLicense.update({
                 where: { id: "singleton" },
                 data: { signature: correctedSignature, status: "active" }
-            }).catch(() => {});
+            }).catch(() => { });
         }
 
         if (currentHost && !isDomainAuthorized(currentHost, record.licensedDomain)) {
-            return { 
-                valid: false, 
-                reason: `DOMAIN_MISMATCH: License is locked to '${record.licensedDomain}' but accessed from '${normalizeDomain(currentHost)}'` 
+            return {
+                valid: false,
+                reason: `DOMAIN_MISMATCH: License is locked to '${record.licensedDomain}' but accessed from '${normalizeDomain(currentHost)}'`
             };
         }
 

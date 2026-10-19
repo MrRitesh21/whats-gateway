@@ -1,6 +1,6 @@
-# WebotApp WhatsGateway — Installation Manual & Deployment Guide
+# WAFlow WhatsGateway — Installation Manual & Deployment Guide
 
-WebotApp WhatsGateway is an enterprise-grade multi-device WhatsApp gateway, chatbot builder, and REST API platform built on Next.js 16, Baileys, Prisma, and Socket.IO.
+WAFlow WhatsGateway is an enterprise-grade multi-device WhatsApp gateway, chatbot builder, and REST API platform built on Next.js 16, Baileys, Prisma, and Socket.IO.
 
 ## 📞 Problems in Installing?
 > **WhatsApp Us at +91 7002484119**  
@@ -13,21 +13,21 @@ WebotApp WhatsGateway is an enterprise-grade multi-device WhatsApp gateway, chat
 
 ### A. Purchased on CodeCanyon, Codester, or Other Marketplaces
 If you purchased this software on **CodeCanyon (Envato)**, **Codester**, or an authorized reseller:
-1. Open the official WebotApp License Portal:  
-   👉 **[https://lab.webotapp.com/activate](https://lab.webotapp.com/activate)**
+1. Open the official WAFlow License Portal:  
+   👉 **[https://lab.WAFlow.com/activate](https://lab.WAFlow.com/activate)**
 2. Select your marketplace (**CodeCanyon** or **Codester**).
-3. Select Product: **WebotApp WhatsGateway**.
+3. Select Product: **WAFlow WhatsGateway**.
 4. Enter your **Marketplace Purchase Code** or **Order ID** (found in your marketplace Downloads page).
 5. Enter your **Name**, **Email**, and **WhatsApp Phone Number**.
 6. Click **"Verify Order & Issue Official License Key"**.
 7. Your official license key (e.g. `WEBOT-WA-REG-XXXX-XXXX-XXXX`) will be displayed instantly on screen.
 8. Paste this license key into Step 2 of the Web Activation Wizard.
 
-### B. Purchased Directly on WebotApp Lab
-If you purchased directly from WebotApp Lab:
-1. Log in to your account at [https://lab.webotapp.com/dashboard](https://lab.webotapp.com/dashboard).
+### B. Purchased Directly on WAFlow Lab
+If you purchased directly from WAFlow Lab:
+1. Log in to your account at [https://lab.WAFlow.com/dashboard](https://lab.WAFlow.com/dashboard).
 2. Go to the **Downloads / Products** tab.
-3. Your dedicated License Key is listed next to WebotApp WhatsGateway.
+3. Your dedicated License Key is listed next to WAFlow WhatsGateway.
 
 ---
 
@@ -60,7 +60,7 @@ npm run dev
 ```
 Open `http://your-domain-or-ip:3000/install` in your browser:
 1. Verify system environment.
-2. Enter your WebotApp Purchase Code (`WEBOT-WA-REG-...` or `WEBOT-WA-EXT-...`).
+2. Enter your WAFlow Purchase Code (`WEBOT-WA-REG-...` or `WEBOT-WA-EXT-...`).
 3. Connect your MySQL/PostgreSQL database.
 4. Create your superadmin credentials.
 
@@ -93,6 +93,6 @@ pm2 startup
 ---
 
 ## 📞 Support & Verification
-- Portal: https://lab.webotapp.com
-- Support: support@webotapp.com
+- Portal: https://lab.WAFlow.com
+- Support: support@WAFlow.com
 - WhatsApp VIP Support: +91 7002484119

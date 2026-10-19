@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     }
 
     const authSecret = crypto.randomBytes(32).toString('hex');
-    const finalAppName = appName || 'WebotApp WhatsGateway';
+    const finalAppName = appName || 'WAFlow WhatsGateway';
 
     // Update or append DATABASE_URL
     if (envContent.includes('DATABASE_URL=')) {

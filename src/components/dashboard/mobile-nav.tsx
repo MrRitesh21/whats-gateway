@@ -109,7 +109,7 @@ const navGroups: NavGroup[] = [
     },
 ];
 
-export function MobileNav({ appName = "WebotApp WhatsApp" }: { appName?: string }) {
+export function MobileNav({ appName = "WAFlow WhatsApp" }: { appName?: string }) {
     const [open, setOpen] = useState(false);
     const pathname = usePathname();
     const { data: session } = useSession();
@@ -124,7 +124,7 @@ export function MobileNav({ appName = "WebotApp WhatsApp" }: { appName?: string 
             .then((d) => {
                 if (active && d?.data?.capabilities) setCaps(d.data.capabilities);
             })
-            .catch(() => {});
+            .catch(() => { });
         return () => {
             active = false;
         };
@@ -223,7 +223,7 @@ export function MobileNav({ appName = "WebotApp WhatsApp" }: { appName?: string 
                             setOpen(false);
                             try {
                                 await signOut({ redirect: false });
-                            } catch {}
+                            } catch { }
                             document.cookie.split(";").forEach((c) => {
                                 const eqPos = c.indexOf("=");
                                 const name = eqPos > -1 ? c.substr(0, eqPos).trim() : c.trim();

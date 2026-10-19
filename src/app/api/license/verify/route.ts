@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
 
         const response = NextResponse.json({
             success: true,
-            message: "License successfully activated and verified with WebotApp Lab!",
+            message: "License successfully activated and verified with WAFlow Lab!",
             license: {
                 purchaseCode: result.license.purchaseCode,
                 licenseType: result.license.licenseType,

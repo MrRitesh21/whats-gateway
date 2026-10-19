@@ -28,7 +28,7 @@ const DEFAULT_CONFIG = {
     maxStickerDuration: 10,
     enablePing: true,
     enableUptime: true,
-    botName: "WebotApp WhatsApp Bot",
+    botName: "WAFlow WhatsApp Bot",
     prefix: "#",
     removeBgApiKey: null as string | null
 };
@@ -299,7 +299,7 @@ export async function handleBotCommand(
                 }
 
                 try {
-                    await sock.sendMessage(remoteJid, { react: { text: "🤔", key: msg.key } }).catch(() => {});
+                    await sock.sendMessage(remoteJid, { react: { text: "🤔", key: msg.key } }).catch(() => { });
                     const { executeSmartChat } = await import("@/lib/ai-gateway/gateway");
                     const res = await executeSmartChat({
                         question: query,
@@ -311,7 +311,7 @@ export async function handleBotCommand(
                         { text: `🤖 *AI Assistant:*\n\n${res.answer}` },
                         { quoted: msg }
                     );
-                    await sock.sendMessage(remoteJid, { react: { text: "💡", key: msg.key } }).catch(() => {});
+                    await sock.sendMessage(remoteJid, { react: { text: "💡", key: msg.key } }).catch(() => { });
                 } catch (aiErr: any) {
                     logger.error("Bot", "AI Command failed", aiErr);
                     await sock.sendMessage(
@@ -461,8 +461,8 @@ export async function handleBotCommand(
 
                     // Convert
                     const sticker = new Sticker(buffer as Buffer, {
-                        pack: (config as any).botName || "WebotApp WhatsApp Bot",
-                        author: "By " + ((config as any).botName || "WebotApp WhatsApp Bot"),
+                        pack: (config as any).botName || "WAFlow WhatsApp Bot",
+                        author: "By " + ((config as any).botName || "WAFlow WhatsApp Bot"),
                         type: "full", // full, crop, circle
                         quality: 15 // Extreme quality reduction for size
                     });
@@ -482,7 +482,7 @@ export async function handleBotCommand(
 
             case "menu":
             case "help": {
-                const botName = (config as any).botName || "WebotApp WhatsApp Bot";
+                const botName = (config as any).botName || "WAFlow WhatsApp Bot";
                 const menu = `
 🤖 *${botName} Menu* 🤖
 
@@ -503,7 +503,7 @@ export async function handleBotCommand(
 • *${prefix}promote* / *${prefix}demote* (tag/reply): Promote / demote admin
 • *${prefix}open* / *${prefix}close*: Open / close group
 
-_Made with ❤️ by WebotApp WhatsApp_
+_Made with ❤️ by WAFlow WhatsApp_
 `;
                 await sock.sendMessage(remoteJid, { text: menu }, { quoted: msg });
                 break;

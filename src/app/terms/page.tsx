@@ -2,8 +2,8 @@ import Link from "next/link";
 import { ArrowLeft, ShieldCheck, Scale } from "lucide-react";
 
 export const metadata = {
-    title: "Terms of Service | WebotApp WhatsApp",
-    description: "Terms of Service and Usage Guidelines for WebotApp WhatsApp.",
+    title: "Terms of Service | WAFlow WhatsApp",
+    description: "Terms of Service and Usage Guidelines for WAFlow WhatsApp.",
 };
 
 export default function TermsPage() {
@@ -34,7 +34,7 @@ export default function TermsPage() {
                     <div className="prose prose-slate dark:prose-invert max-w-none prose-headings:font-bold prose-headings:tracking-tight prose-a:text-primary hover:prose-a:text-primary/80 prose-p:leading-relaxed">
 
                         <p className="lead text-lg text-muted-foreground mb-8">
-                            Welcome to WebotApp WhatsApp. By accessing or using our WhatsApp Gateway & Automation platform, you agree to be bound by these Terms. If you do not agree, please do not use the service.
+                            Welcome to WAFlow WhatsApp. By accessing or using our WhatsApp Gateway & Automation platform, you agree to be bound by these Terms. If you do not agree, please do not use the service.
                         </p>
 
                         <h2 className="flex items-center gap-2 mt-8 text-2xl border-b pb-2">
@@ -42,7 +42,7 @@ export default function TermsPage() {
                             1. Data Security & Responsibility
                         </h2>
                         <p>
-                            Security forms the core of our service. As a dedicated platform, WebotApp WhatsApp ensures that your data remains strictly within your own infrastructure.
+                            Security forms the core of our service. As a dedicated platform, WAFlow WhatsApp ensures that your data remains strictly within your own infrastructure.
                         </p>
                         <ul>
                             <li><strong>Your Data is Yours:</strong> We do not track, intercept, or sell your WhatsApp messages, contact lists, or session data. Your information is secure and not misused.</li>
@@ -52,7 +52,7 @@ export default function TermsPage() {
 
                         <h2 className="mt-8 text-2xl border-b pb-2">2. Acceptable Use Policy</h2>
                         <p>
-                            When utilizing WebotApp WhatsApp's API, auto-replies, and broadcasting capabilities, you agree to abide by WhatsApp's official Terms of Service and Anti-Spam policies. You agree not to:
+                            When utilizing WAFlow WhatsApp's API, auto-replies, and broadcasting capabilities, you agree to abide by WhatsApp's official Terms of Service and Anti-Spam policies. You agree not to:
                         </p>
                         <ul>
                             <li>Send unsolicited "spam" messages or bulk promotional campaigns to users who have not explicitly opted-in.</li>
@@ -62,17 +62,17 @@ export default function TermsPage() {
 
                         <h2 className="mt-8 text-2xl border-b pb-2">3. Account Integrity</h2>
                         <p>
-                            WebotApp WhatsApp provides tools to manage multiple WhatsApp sessions. It is crucial to monitor your active devices. If you suspect unauthorized access to your gateway dashboard, immediately change your password and revoke any connected WhatsApp sessions from your physical device.
+                            WAFlow WhatsApp provides tools to manage multiple WhatsApp sessions. It is crucial to monitor your active devices. If you suspect unauthorized access to your gateway dashboard, immediately change your password and revoke any connected WhatsApp sessions from your physical device.
                         </p>
 
                         <h2 className="mt-8 text-2xl border-b pb-2">4. Disclaimers and Limitations</h2>
                         <p>
-                            WebotApp WhatsApp is provided "as is" and without warranties of any kind. We utilize third-party libraries to connect to WhatsApp protocols. Changes to WhatsApp's internal systems may occasionally disrupt service. We are not liable for any account suspensions or bans imposed by WhatsApp as a result of your usage.
+                            WAFlow WhatsApp is provided "as is" and without warranties of any kind. We utilize third-party libraries to connect to WhatsApp protocols. Changes to WhatsApp's internal systems may occasionally disrupt service. We are not liable for any account suspensions or bans imposed by WhatsApp as a result of your usage.
                         </p>
 
                         <div className="mt-12 p-6 bg-primary/5 rounded-2xl border border-primary/10">
                             <p className="font-semibold mb-2">Have questions about these terms?</p>
-                            <p className="text-sm text-muted-foreground mb-0">Visit our official website at <a href="https://webotapp.com" target="_blank" rel="noreferrer">WebotApp.com</a> or review our <Link href="/docs">Documentation</Link>.</p>
+                            <p className="text-sm text-muted-foreground mb-0">Visit our official website at <a href="https://WAFlow.com" target="_blank" rel="noreferrer">WAFlow.com</a> or review our <Link href="/docs">Documentation</Link>.</p>
                         </div>
                     </div>
                 </div>

@@ -2,8 +2,8 @@ import Link from "next/link";
 import { ArrowLeft, Lock, Shield } from "lucide-react";
 
 export const metadata = {
-    title: "Privacy Policy | WebotApp WhatsApp",
-    description: "Privacy Policy and Data Handling for WebotApp WhatsApp Gateway.",
+    title: "Privacy Policy | WAFlow WhatsApp",
+    description: "Privacy Policy and Data Handling for WAFlow WhatsApp Gateway.",
 };
 
 export default function PrivacyPage() {
@@ -34,7 +34,7 @@ export default function PrivacyPage() {
                     <div className="prose prose-slate dark:prose-invert max-w-none prose-headings:font-bold prose-headings:tracking-tight prose-a:text-primary hover:prose-a:text-primary/80 prose-p:leading-relaxed">
 
                         <p className="lead text-lg text-muted-foreground mb-8">
-                            At WebotApp WhatsApp, we believe that your data is your property. This Privacy Policy details the strict boundaries regarding how information is handled when using our self-hosted WhatsApp Gateway & Automation platform.
+                            At WAFlow WhatsApp, we believe that your data is your property. This Privacy Policy details the strict boundaries regarding how information is handled when using our self-hosted WhatsApp Gateway & Automation platform.
                         </p>
 
                         <h2 className="flex items-center gap-2 mt-8 text-2xl border-b pb-2">
@@ -42,10 +42,10 @@ export default function PrivacyPage() {
                             1. Zero-Tracking Architecture
                         </h2>
                         <p>
-                            Because WebotApp WhatsApp WhatsApp Gateway is designed to be <strong>self-hosted</strong>, all core data processing occurs exclusively on the hardware where you deploy the application.
+                            Because WAFlow WhatsApp WhatsApp Gateway is designed to be <strong>self-hosted</strong>, all core data processing occurs exclusively on the hardware where you deploy the application.
                         </p>
                         <ul>
-                            <li><strong>No Centralized Telemetry:</strong> WebotApp WhatsApp does not receive telemetry, analytics, or usage reports about your WhatsApp interactions.</li>
+                            <li><strong>No Centralized Telemetry:</strong> WAFlow WhatsApp does not receive telemetry, analytics, or usage reports about your WhatsApp interactions.</li>
                             <li><strong>Absolute Data Ownership:</strong> Your contacts, messages, schedules, and auto-replies remain in your own database. We cannot and will not access it.</li>
                         </ul>
 
@@ -55,13 +55,13 @@ export default function PrivacyPage() {
                         </p>
                         <ul>
                             <li><strong>Authentication Credentials:</strong> Passwords you create for the dashboard are securely hashed using bcrypt before being stored in your local database.</li>
-                            <li><strong>WhatsApp Sessions:</strong> WebotApp WhatsApp Gateway acts as a bridge to WhatsApp Web. The session tokens (keys) necessary to maintain this connection are stored locally on your server.</li>
+                            <li><strong>WhatsApp Sessions:</strong> WAFlow WhatsApp Gateway acts as a bridge to WhatsApp Web. The session tokens (keys) necessary to maintain this connection are stored locally on your server.</li>
                             <li><strong>Communication Logs:</strong> Messages sent and received via the gateway are logged within your local database to provide you with historical data and webhook functionality.</li>
                         </ul>
 
                         <h2 className="mt-8 text-2xl border-b pb-2">3. Protecting Your Information</h2>
                         <p>
-                            While WebotApp WhatsApp is built with modern security practices, the ultimate safety of your data depends on your hosting environment. We strongly recommend:
+                            While WAFlow WhatsApp is built with modern security practices, the ultimate safety of your data depends on your hosting environment. We strongly recommend:
                         </p>
                         <ul>
                             <li>Deploying the application behind a reverse proxy with enforced <strong>SSL/TLS encryption</strong> (HTTPS).</li>
@@ -71,12 +71,12 @@ export default function PrivacyPage() {
 
                         <h2 className="mt-8 text-2xl border-b pb-2">4. Third-Party Integrations</h2>
                         <p>
-                            WebotApp WhatsApp utilizes the <code>@whiskeysockets/baileys</code> library to communicate directly with WhatsApp's servers. By using this gateway, your server will establish a direct web-socket connection to WhatsApp. Please be aware that your use of WhatsApp is still subject to Meta's Privacy Policy.
+                            WAFlow WhatsApp utilizes the <code>@whiskeysockets/baileys</code> library to communicate directly with WhatsApp's servers. By using this gateway, your server will establish a direct web-socket connection to WhatsApp. Please be aware that your use of WhatsApp is still subject to Meta's Privacy Policy.
                         </p>
 
                         <div className="mt-12 p-6 bg-blue-500/5 rounded-2xl border border-blue-500/10">
                             <p className="font-semibold mb-2">Need Further Details?</p>
-                            <p className="text-sm text-muted-foreground mb-0">If you have specific questions about data handling or wish to learn more about our services, please visit <Link href="https://webotapp.com" target="_blank" rel="noopener noreferrer">webotapp.com</Link>.</p>
+                            <p className="text-sm text-muted-foreground mb-0">If you have specific questions about data handling or wish to learn more about our services, please visit <Link href="https://WAFlow.com" target="_blank" rel="noopener noreferrer">WAFlow.com</Link>.</p>
                         </div>
                     </div>
                 </div>

@@ -4,7 +4,7 @@ import { LandingNav } from "@/components/landing/landing-nav";
 import { PricingCards } from "@/components/landing/pricing";
 
 export const metadata = {
-    title: "Pricing | WebotApp WhatsApp",
+    title: "Pricing | WAFlow WhatsApp",
     description: "Choose the plan that fits your business needs. Start free and scale anytime."
 };
 
@@ -31,8 +31,8 @@ export default function PricingPage() {
 
                     <p className="text-center text-sm text-muted-foreground mt-10">
                         Need higher quotas or custom enterprise automation?{" "}
-                        <Link href="https://webotapp.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                            Contact WebotApp WhatsApp
+                        <Link href="https://WAFlow.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                            Contact WAFlow WhatsApp
                         </Link>
                         .
                     </p>
@@ -46,11 +46,11 @@ export default function PricingPage() {
                             <Bot className="h-5 w-5 text-primary" />
                         </div>
                         <span className="font-bold text-foreground" translate="no">
-                            WebotApp WhatsApp
+                            WAFlow WhatsApp
                         </span>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                        © {new Date().getFullYear()} WebotApp WhatsApp. All rights reserved.
+                        © {new Date().getFullYear()} WAFlow WhatsApp. All rights reserved.
                     </p>
                 </div>
             </footer>

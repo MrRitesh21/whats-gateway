@@ -56,13 +56,13 @@ export async function POST(
         event: "webhook.test",
         sessionId,
         timestamp: new Date().toISOString(),
-        data: { message: "This is a test payload from WebotApp WhatsApp. If you received this, your webhook is working." },
+        data: { message: "This is a test payload from WAFlow WhatsApp. If you received this, your webhook is working." },
     };
     const body = JSON.stringify(payload);
 
     const headers: Record<string, string> = {
         "Content-Type": "application/json",
-        "User-Agent": "WebotApp-WhatsApp-Webhook/1.0",
+        "User-Agent": "WAFlow-WhatsApp-Webhook/1.0",
     };
     if (webhook.secret) {
         const signature = crypto.createHmac("sha256", webhook.secret).update(body).digest("hex");

@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { 
-    Key, ShieldCheck, CheckCircle2, ExternalLink, 
-    Sparkles, ArrowRight, AlertCircle, RefreshCw, Lock, 
-    Globe, HelpCircle, Check, Copy 
+import {
+    Key, ShieldCheck, CheckCircle2, ExternalLink,
+    Sparkles, ArrowRight, AlertCircle, RefreshCw, Lock,
+    Globe, HelpCircle, Check, Copy
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -33,7 +33,7 @@ export default function ActivateLicensePage() {
                     setSuccessData(data);
                 }
             })
-            .catch(() => {})
+            .catch(() => { })
             .finally(() => setCheckingStatus(false));
     }, []);
 
@@ -42,7 +42,7 @@ export default function ActivateLicensePage() {
         setError(null);
 
         if (!purchaseCode.trim()) {
-            setError("Please enter your official WebotApp License Key.");
+            setError("Please enter your official WAFlow License Key.");
             return;
         }
 
@@ -97,7 +97,7 @@ export default function ActivateLicensePage() {
                         <span>Source Code License Verification</span>
                     </div>
                     <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
-                        Activate WebotApp WhatsApp
+                        Activate WAFlow WhatsApp
                     </h1>
                     <p className="text-sm text-slate-400 max-w-lg mx-auto leading-relaxed">
                         To protect your installation and access the dashboard and WhatsApp API services, please activate your license key below.
@@ -163,15 +163,15 @@ export default function ActivateLicensePage() {
                                 </span>
                             </div>
                             <p className="text-xs text-slate-300 leading-relaxed">
-                                Go to <strong className="text-white">lab.webotapp.com/activate</strong>, choose <span className="text-emerald-400 font-bold">Direct / Agency</span> (or CodeCanyon), select <strong className="text-white">WhatsGateway</strong>, and complete the quick form to receive your official <code className="bg-black/60 px-1.5 py-0.5 rounded text-emerald-400 font-mono">WEBOT-WA-XXXX</code> license key.
+                                Go to <strong className="text-white">lab.WAFlow.com/activate</strong>, choose <span className="text-emerald-400 font-bold">Direct / Agency</span> (or CodeCanyon), select <strong className="text-white">WhatsGateway</strong>, and complete the quick form to receive your official <code className="bg-black/60 px-1.5 py-0.5 rounded text-emerald-400 font-mono">WEBOT-WA-XXXX</code> license key.
                             </p>
                             <a
-                                href="https://lab.webotapp.com/activate"
+                                href="https://lab.WAFlow.com/activate"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 text-black font-black text-xs uppercase tracking-wider hover:bg-emerald-400 transition cursor-pointer shadow-md"
                             >
-                                <span>Open lab.webotapp.com/activate</span>
+                                <span>Open lab.WAFlow.com/activate</span>
                                 <ExternalLink size={13} />
                             </a>
                         </div>
@@ -192,7 +192,7 @@ export default function ActivateLicensePage() {
 
                             <div>
                                 <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
-                                    Official WebotApp License Key <span className="text-emerald-400">*</span>
+                                    Official WAFlow License Key <span className="text-emerald-400">*</span>
                                 </label>
                                 <div className="relative">
                                     <input
@@ -252,7 +252,7 @@ export default function ActivateLicensePage() {
                                 {loading ? (
                                     <>
                                         <RefreshCw size={16} className="animate-spin" />
-                                        <span>Validating with WebotApp Lab...</span>
+                                        <span>Validating with WAFlow Lab...</span>
                                     </>
                                 ) : (
                                     <>
@@ -267,7 +267,7 @@ export default function ActivateLicensePage() {
 
                 {/* Footer Disclaimer */}
                 <div className="text-center text-[11px] text-slate-500 font-medium">
-                    WebotApp WhatsApp &copy; {new Date().getFullYear()} WebotApp Lab. All rights reserved. Single-domain commercial software license.
+                    WAFlow WhatsApp &copy; {new Date().getFullYear()} WAFlow Lab. All rights reserved. Single-domain commercial software license.
                 </div>
             </div>
         </div>

@@ -1,6 +1,6 @@
 # Claude & Model Context Protocol (MCP) Integration Guide
 
-This guide explains how to connect **Claude Desktop**, **Claude Code**, Cursor, or any MCP-compatible AI client directly to your **WeBotApp WhatsApp Gateway** using the **Model Context Protocol (MCP)**.
+This guide explains how to connect **Claude Desktop**, **Claude Code**, Cursor, or any MCP-compatible AI client directly to your **WAFlow WhatsApp Gateway** using the **Model Context Protocol (MCP)**.
 
 ---
 

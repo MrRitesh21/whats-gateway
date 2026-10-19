@@ -285,7 +285,7 @@ export async function executeProviderCall(
                 temperature,
                 maxTokens,
                 timeoutMs,
-                { "HTTP-Referer": "https://webotapp.com", "X-Title": "WebotApp AI Gateway" }
+                { "HTTP-Referer": "https://WAFlow.com", "X-Title": "WAFlow AI Gateway" }
             );
         }
         case "ollama": {

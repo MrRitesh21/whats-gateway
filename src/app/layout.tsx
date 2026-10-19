@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.BASE_URL || process.env.NEXTAUTH_URL || "http://localhost:3030"),
-  title: "WebotApp WhatsApp | WhatsApp Gateway & Automation",
-  description: "Next-generation WhatsApp Gateway & Automation by WebotApp WhatsApp",
+  title: "WAFlow WhatsApp | WhatsApp Gateway & Automation",
+  description: "Next-generation WhatsApp Gateway & Automation by WAFlow WhatsApp",
   robots: {
     index: process.env.NEXT_PUBLIC_ALLOW_INDEXING === "true",
     follow: process.env.NEXT_PUBLIC_ALLOW_INDEXING === "true",

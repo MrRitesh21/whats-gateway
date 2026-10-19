@@ -102,7 +102,7 @@ export async function dispatchWebhook(
             where: { sessionId: session.id },
             select: { userId: true }
         });
-        
+
         const userIds = [session.userId, ...accesses.map(a => a.userId)];
 
         const webhooks = await prisma.webhook.findMany({
@@ -183,7 +183,7 @@ async function sendWebhookRequest(url: string, payload: WebhookPayload, secret?:
 
     const headers: Record<string, string> = {
         "Content-Type": "application/json",
-        "User-Agent": "WebotApp-WhatsApp-Webhook/1.0"
+        "User-Agent": "WAFlow-WhatsApp-Webhook/1.0"
     };
 
     // Add HMAC signature if secret is provided

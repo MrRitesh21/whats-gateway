@@ -7,7 +7,7 @@ export const getApiDocs = () => {
         definition: {
             openapi: "3.0.0",
             info: {
-                title: "WebotApp WhatsApp API Documentation",
+                title: "WAFlow WhatsApp API Documentation",
                 version: "1.2.0",
                 description: `
 # WhatsApp AI Gateway - Complete API Reference
@@ -133,10 +133,10 @@ All endpoints require authentication via:
                             id: { type: "string" },
                             sessionId: { type: "string" },
                             url: { type: "string" },
-                            events: { 
-                                type: "array", 
+                            events: {
+                                type: "array",
                                 items: { type: "string" },
-                                description: "Events to subscribe to: message.received, message.sent, message.status, connection.update, group.update, contact.update, status.update, group.participant, message.deleted, message.edited or '*'" 
+                                description: "Events to subscribe to: message.received, message.sent, message.status, connection.update, group.update, contact.update, status.update, group.participant, message.deleted, message.edited or '*'"
                             },
                             secret: { type: "string" }
                         }
@@ -2062,7 +2062,7 @@ All endpoints require authentication via:
                                         required: ["file"],
                                         properties: {
                                             file: { type: "string", format: "binary" },
-                                            pack: { type: "string", description: "Sticker pack name (default: WebotApp WhatsApp)" },
+                                            pack: { type: "string", description: "Sticker pack name (default: WAFlow WhatsApp)" },
                                             author: { type: "string", description: "Sticker author name (default: User)" },
                                             type: { type: "string", enum: ["full", "crop", "circle"], description: "Sticker crop type (default: full)" },
                                             quality: { type: "integer", minimum: 1, maximum: 100, description: "Image quality (default: 50)" }
@@ -5484,7 +5484,7 @@ All endpoints require authentication via:
                                             type: "object",
                                             properties: {
                                                 id: { type: "string", example: "default" },
-                                                appName: { type: "string", example: "WebotApp WhatsApp" },
+                                                appName: { type: "string", example: "WAFlow WhatsApp" },
                                                 logoUrl: { type: "string", example: "https://example.com/logo.png" },
                                                 timezone: { type: "string", example: "Asia/Kolkata" }
                                             }

@@ -40,7 +40,7 @@ export function LandingNav() {
                             <Bot className="h-5 w-5 md:h-6 md:w-6" />
                             <div className="absolute inset-0 rounded-full bg-blue-500 blur-md -z-10 opacity-50 animate-pulse-glow" />
                         </div>
-                        <span className="text-foreground tracking-tight text-base min-[400px]:text-xl truncate max-w-[150px] min-[400px]:max-w-none" translate="no">WebotApp WhatsApp</span>
+                        <span className="text-foreground tracking-tight text-base min-[400px]:text-xl truncate max-w-[150px] min-[400px]:max-w-none" translate="no">WAFlow WhatsApp</span>
                     </Link>
 
                     {/* Desktop nav */}
@@ -48,8 +48,8 @@ export function LandingNav() {
                         <Link href="/#features" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Features</Link>
                         <Link href="/#pricing" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Pricing</Link>
                         <Link href="/docs" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap">API & Docs</Link>
-                        <Link href="https://webotapp.com" target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-                            <Globe className="h-4 w-4" /> WebotApp.com
+                        <Link href="https://WAFlow.com" target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+                            <Globe className="h-4 w-4" /> WAFlow.com
                         </Link>
                     </nav>
 
@@ -98,13 +98,13 @@ export function LandingNav() {
                                 API & Docs
                             </Link>
                             <Link
-                                href="https://webotapp.com"
+                                href="https://WAFlow.com"
                                 target="_blank"
                                 rel="noreferrer"
                                 onClick={close}
                                 className="px-4 py-3 text-sm font-medium text-foreground/80 hover:bg-foreground/5 rounded-xl transition-colors flex items-center gap-2"
                             >
-                                <Globe className="h-4 w-4" /> WebotApp.com
+                                <Globe className="h-4 w-4" /> WAFlow.com
                             </Link>
                             <Link
                                 href={ctaHref}

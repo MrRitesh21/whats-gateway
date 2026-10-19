@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json(
             {
                 status: true,
-                service: "WeBotApp WhatsApp Model Context Protocol (MCP) Server",
+                service: "WAFlow WhatsApp Model Context Protocol (MCP) Server",
                 version: "1.5.4",
                 protocolVersion: "2024-11-05",
                 authenticatedUser: {

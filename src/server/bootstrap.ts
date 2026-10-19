@@ -1,5 +1,5 @@
 // ============================================================
-// BOOTSTRAP — WebotApp WhatsGateway Enterprise Auto-Starter
+// BOOTSTRAP — WAFlow WhatsGateway Enterprise Auto-Starter
 // ------------------------------------------------------------
 import * as fs from "fs";
 import * as path from "path";
@@ -56,7 +56,7 @@ async function autoProvision() {
     try {
         const { PrismaClient } = await import("@prisma/client");
         const prisma = new PrismaClient();
-        
+
         let needsPush = false;
         try {
             await prisma.user.findFirst();

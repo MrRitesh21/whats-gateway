@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
     const result = await verifyAndSaveLicense({
       purchase_code,
       customer_name: customer_name || 'Administrator',
-      customer_email: customer_email || 'admin@webotapp.com',
+      customer_email: customer_email || 'admin@WAFlow.com',
       domain: domain || (req.headers.get('host') || 'localhost')
     });
 

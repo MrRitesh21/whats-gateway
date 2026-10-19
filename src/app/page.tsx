@@ -12,11 +12,11 @@ import path from "path";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "WebotApp WhatsApp | WhatsApp Gateway & Automation",
+  title: "WAFlow WhatsApp | WhatsApp Gateway & Automation",
   description: "Build, automate, and scale your WhatsApp communication. Multi-session management, smart auto-replies, scheduled broadcasts, and REST API integration.",
   openGraph: {
-    title: "WebotApp WhatsApp | WhatsApp Gateway & Automation",
-    description: "Self-hosted WhatsApp Gateway with Multi-device support, Auto-replies, and API integration by WebotApp WhatsApp.",
+    title: "WAFlow WhatsApp | WhatsApp Gateway & Automation",
+    description: "Self-hosted WhatsApp Gateway with Multi-device support, Auto-replies, and API integration by WAFlow WhatsApp.",
     type: "website",
   },
 };
@@ -234,16 +234,16 @@ export default async function Home() {
               <div className="p-2 rounded-xl bg-primary/10">
                 <Bot className="h-6 w-6 text-primary" />
               </div>
-              <span className="text-xl font-bold text-foreground" translate="no">WebotApp WhatsApp</span>
+              <span className="text-xl font-bold text-foreground" translate="no">WAFlow WhatsApp</span>
             </div>
             <div className="flex gap-8 text-sm font-medium">
-              <Link href="https://webotapp.com" target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">WebotApp.com</Link>
+              <Link href="https://WAFlow.com" target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">WAFlow.com</Link>
               <Link href="/privacy" className="text-muted-foreground hover:text-foreground transition-colors">Privacy</Link>
               <Link href="/terms" className="text-muted-foreground hover:text-foreground transition-colors">Terms</Link>
               <Link href="/docs" className="text-muted-foreground hover:text-foreground transition-colors">API &amp; Docs</Link>
             </div>
             <p className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} <span translate="no">WebotApp WhatsApp</span>. All rights reserved.
+              © {new Date().getFullYear()} <span translate="no">WAFlow WhatsApp</span>. All rights reserved.
             </p>
           </div>
         </div>

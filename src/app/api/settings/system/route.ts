@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
             faviconUrl: config.faviconUrl,
             logoUrl: config.logoUrl,
             timezone: config.timezone,
-        } : { appName: "WebotApp WhatsApp", faviconUrl: "/favicon.ico", timezone: "Asia/Kolkata" };
+        } : { appName: "WAFlow WhatsApp", faviconUrl: "/favicon.ico", timezone: "Asia/Kolkata" };
 
         // Admin-only sensitive fields — return only when caller is SUPERADMIN
         try {
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
             update: patch,
             create: {
                 id: "default",
-                appName: appName ?? "WebotApp WhatsApp",
+                appName: appName ?? "WAFlow WhatsApp",
                 logoUrl: logoUrl ?? "",
                 faviconUrl: faviconUrl ?? "/favicon.ico",
                 timezone: timezone ?? "Asia/Kolkata",

@@ -7,7 +7,7 @@ import { DocsClient } from './docs-client';
 import { prisma } from '@/lib/prisma';
 import type { Metadata } from 'next';
 
-// App name from Settings (DB) → env APP_NAME → fallback "WebotApp WhatsApp".
+// App name from Settings (DB) → env APP_NAME → fallback "WAFlow WhatsApp".
 async function getAppName(): Promise<string> {
     try {
         const cfg = await prisma.systemConfig.findUnique({
@@ -16,7 +16,7 @@ async function getAppName(): Promise<string> {
         });
         if (cfg?.appName) return cfg.appName;
     } catch { /* ignore */ }
-    return process.env.APP_NAME || 'WebotApp WhatsApp';
+    return process.env.APP_NAME || 'WAFlow WhatsApp';
 }
 
 export async function generateMetadata(): Promise<Metadata> {

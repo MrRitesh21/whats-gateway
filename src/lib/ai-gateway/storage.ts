@@ -20,10 +20,10 @@ const DEFAULT_CONFIG: AIGatewayStoreData = {
             id: "doc-sample-1",
             title: "General Service Information & FAQ",
             category: "Customer Support",
-            content: `WebotApp WhatsApp Gateway provides cloud-based WhatsApp API, automation, multi-device management, broadcasting, and AI chatbots.
+            content: `WAFlow WhatsApp Gateway provides cloud-based WhatsApp API, automation, multi-device management, broadcasting, and AI chatbots.
 Operating Hours: Monday to Friday from 09:00 AM to 06:00 PM IST.
-Support Email: support@webotapp.com
-Website: https://webotapp.com
+Support Email: support@WAFlow.com
+Website: https://WAFlow.com
 Features:
 - Multi-session WhatsApp web management
 - Bulk messaging with Anti-Ban and multi-session rotation
@@ -79,7 +79,7 @@ export async function getAIGatewayData(): Promise<AIGatewayStoreData> {
             // Mirror to local disk in background for resilience
             fs.mkdir(DATA_DIR, { recursive: true })
                 .then(() => fs.writeFile(CONFIG_FILE, JSON.stringify(inMemoryCache, null, 2), "utf-8"))
-                .catch(() => {});
+                .catch(() => { });
             return inMemoryCache;
         }
 

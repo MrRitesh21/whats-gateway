@@ -1,4 +1,4 @@
-# WebotApp WhatsGateway (v1.5.4) — Complete Installation & Setup Guide
+# WAFlow WhatsGateway (v1.5.4) — Complete Installation & Setup Guide
 
 Multi-Device WhatsApp Marketing, Chatbot, Customer Support & REST API Gateway.
 
@@ -55,8 +55,8 @@ AUTH_SECRET="use-a-strong-random-32-character-secret-key-here"
 # Your PostgreSQL Database URL:
 DATABASE_URL="postgresql://username:password@localhost:5432/wa_gateway_db?schema=public"
 
-# WebotApp Lab Licensing API:
-LAB_API_BASE="https://lab.webotapp.com/api"
+# WAFlow Lab Licensing API:
+LAB_API_BASE="https://lab.WAFlow.com/api"
 ```
 
 ### Step 4: Setup Database
@@ -132,7 +132,7 @@ AUTH_SECRET="generate-with-openssl-rand-base64-32"
 AUTH_TRUST_HOST="true"
 
 DATABASE_URL="postgresql://wa_user:StrongSecurePassword123!@localhost:5432/wa_gateway_db?schema=public"
-LAB_API_BASE="https://lab.webotapp.com/api"
+LAB_API_BASE="https://lab.WAFlow.com/api"
 ```
 
 ### Step 4: Migrate Database & Setup Super Admin
@@ -173,9 +173,9 @@ docker compose up -d
 
 ## 5. License Activation Process
 
-This software is protected by **WebotApp Single-Domain Licensing**. Immediately after installation, you must activate your license to unlock the dashboard and WhatsApp engine:
+This software is protected by **WAFlow Single-Domain Licensing**. Immediately after installation, you must activate your license to unlock the dashboard and WhatsApp engine:
 
-1. Visit **`https://lab.webotapp.com/activate`** in your browser.
+1. Visit **`https://lab.WAFlow.com/activate`** in your browser.
 2. In the registration form:
    - **Marketplace**: Select **Direct / Agency** (or CodeCanyon/Codester if purchased there).
    - **Order ID / Purchase Code**: Enter your Order ID or Receipt number.
@@ -269,6 +269,6 @@ kill -9 <PID>
 ---
 
 ## Support & Assistance
-- **Official Portal**: https://lab.webotapp.com
-- **License Activation**: https://lab.webotapp.com/activate
-- **Email Support**: support@webotapp.com
+- **Official Portal**: https://lab.WAFlow.com
+- **License Activation**: https://lab.WAFlow.com/activate
+- **Email Support**: support@WAFlow.com

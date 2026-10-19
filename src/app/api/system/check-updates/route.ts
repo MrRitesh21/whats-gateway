@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
     if (!user) return NextResponse.json({ status: false, message: "Unauthorized", error: "Unauthorized" }, { status: 401 });
 
     const license = getLicenseInfo();
-    const labUrl = process.env.WEBOTAPP_LAB_URL || 'https://lab.webotapp.com';
+    const labUrl = process.env.WAFlow_LAB_URL || 'https://lab.WAFlow.com';
 
     try {
         const response = await fetch(`${labUrl}/api/check-updates?current_version=1.0.0&purchase_code=${encodeURIComponent(license?.purchase_code || '')}`);
@@ -41,9 +41,9 @@ export async function POST(req: NextRequest) {
             data: {
                 userId: user.id,
                 title: title,
-                message: `A new version (v${version}) of WebotApp WhatsGateway is available from WebotApp Lab!\n\n${data.changelog || 'Performance improvements and security updates.'}`,
+                message: `A new version (v${version}) of WAFlow WhatsGateway is available from WAFlow Lab!\n\n${data.changelog || 'Performance improvements and security updates.'}`,
                 type: "SYSTEM",
-                href: "https://lab.webotapp.com/dashboard"
+                href: "https://lab.WAFlow.com/dashboard"
             }
         });
 

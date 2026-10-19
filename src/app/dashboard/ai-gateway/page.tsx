@@ -470,19 +470,17 @@ export default function AIGatewayPage() {
                     <button
                         key={id}
                         onClick={() => setActiveTab(id as any)}
-                        className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-                            activeTab === id
+                        className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${activeTab === id
                                 ? "bg-primary text-primary-foreground shadow-sm"
                                 : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
-                        }`}
+                            }`}
                     >
                         <Icon className="h-4 w-4" />
                         {label}
                         {badge !== undefined && (
                             <span
-                                className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                                    activeTab === id ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
-                                }`}
+                                className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${activeTab === id ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
+                                    }`}
                             >
                                 {badge}
                             </span>
@@ -618,9 +616,8 @@ export default function AIGatewayPage() {
                                 return (
                                     <Card
                                         key={acc.id}
-                                        className={`transition-all border-border/60 hover:border-primary/40 ${
-                                            !acc.isActive ? "opacity-60 bg-muted/20" : ""
-                                        }`}
+                                        className={`transition-all border-border/60 hover:border-primary/40 ${!acc.isActive ? "opacity-60 bg-muted/20" : ""
+                                            }`}
                                     >
                                         <CardHeader className="pb-2.5">
                                             <div className="flex items-start justify-between gap-2">
@@ -1056,11 +1053,10 @@ export default function AIGatewayPage() {
                                         return (
                                             <label
                                                 key={s.sessionId}
-                                                className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
-                                                    isChecked
+                                                className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${isChecked
                                                         ? "border-primary/40 bg-primary/5"
                                                         : "border-border/40 hover:bg-muted/30"
-                                                }`}
+                                                    }`}
                                             >
                                                 <Checkbox
                                                     checked={isChecked}
@@ -1092,7 +1088,7 @@ export default function AIGatewayPage() {
                                     value={ragConfig.systemInstructions}
                                     onChange={(e) => setRagConfig((prev) => ({ ...prev, systemInstructions: e.target.value }))}
                                     onBlur={() => handleSaveRAGSettings({ systemInstructions: ragConfig.systemInstructions })}
-                                    placeholder="You are the official customer service assistant for WebotApp..."
+                                    placeholder="You are the official customer service assistant for WAFlow..."
                                     className="text-xs resize-none"
                                 />
                                 <p className="text-[10px] text-muted-foreground">
@@ -1182,11 +1178,10 @@ export default function AIGatewayPage() {
                                                 key={m.id}
                                                 type="button"
                                                 onClick={() => setAccountForm({ ...accountForm, model: m.id })}
-                                                className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
-                                                    accountForm.model === m.id
+                                                className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${accountForm.model === m.id
                                                         ? "bg-primary text-primary-foreground border-primary"
                                                         : "bg-muted/50 hover:bg-muted text-muted-foreground border-border/40"
-                                                }`}
+                                                    }`}
                                             >
                                                 {m.label}
                                             </button>
@@ -1211,16 +1206,16 @@ export default function AIGatewayPage() {
                             accountForm.provider === "custom" ||
                             accountForm.provider === "openrouter" ||
                             accountForm.provider === "openai") && (
-                            <div className="space-y-1.5">
-                                <Label className="text-xs">Base URL (Optional)</Label>
-                                <Input
-                                    value={accountForm.baseUrl || ""}
-                                    onChange={(e) => setAccountForm({ ...accountForm, baseUrl: e.target.value })}
-                                    placeholder={accountForm.provider === "ollama" ? "http://localhost:11434" : "https://api.openai.com/v1"}
-                                    className="text-xs h-9 font-mono"
-                                />
-                            </div>
-                        )}
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs">Base URL (Optional)</Label>
+                                    <Input
+                                        value={accountForm.baseUrl || ""}
+                                        onChange={(e) => setAccountForm({ ...accountForm, baseUrl: e.target.value })}
+                                        placeholder={accountForm.provider === "ollama" ? "http://localhost:11434" : "https://api.openai.com/v1"}
+                                        className="text-xs h-9 font-mono"
+                                    />
+                                </div>
+                            )}
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div className="space-y-1.5">

@@ -1,6 +1,6 @@
 {
-  "name": "webotapp-whatsapp",
-  "description": "WhatsApp Management Gateway & Automation by WebotApp WhatsApp",
+  "name": "WAFlow-whatsapp",
+  "description": "WhatsApp Management Gateway & Automation by WAFlow WhatsApp",
   "version": "1.5.6",
   "private": false,
   "scripts": {

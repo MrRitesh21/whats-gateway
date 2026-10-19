@@ -47,7 +47,7 @@ export default function SettingsPage() {
                 const data = responseData?.data;
                 if (data && !responseData.error) {
                     setSystemConfig({
-                        appName: data.appName || "WebotApp WhatsApp",
+                        appName: data.appName || "WAFlow WhatsApp",
                         logoUrl: data.logoUrl || "",
                         // @ts-ignore
                         faviconUrl: data.faviconUrl || "/favicon.ico",
@@ -118,7 +118,7 @@ export default function SettingsPage() {
                             <Label>Application Name</Label>
                             <input
                                 className={inputClass}
-                                placeholder="WebotApp WhatsApp"
+                                placeholder="WAFlow WhatsApp"
                                 value={systemConfig.appName}
                                 onChange={(e) => setSystemConfig(prev => ({ ...prev, appName: e.target.value }))}
                                 disabled={!isSuperAdmin}

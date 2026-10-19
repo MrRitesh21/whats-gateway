@@ -268,7 +268,7 @@ export function DocsClient({ content, toc }: DocsClientProps) {
                 </article>
 
                 <footer className="mt-20 pt-8 border-t text-center text-sm text-gray-400">
-                    <p>© {new Date().getFullYear()} WebotApp WhatsApp. All rights reserved.</p>
+                    <p>© {new Date().getFullYear()} WAFlow WhatsApp. All rights reserved.</p>
                 </footer>
             </main>
         </div>

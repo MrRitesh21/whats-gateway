@@ -519,7 +519,7 @@ export async function executeMcpTool(name: string, args: any, user: McpUser): Pr
                                 },
                                 sessionsTotal: sessions.length,
                                 sessionsConnected: connectedCount,
-                                server: "WeBotApp WhatsApp Gateway v1.5.4",
+                                server: "WAFlow WhatsApp Gateway v1.5.4",
                                 protocolVersion: "2024-11-05"
                             }, null, 2)
                         }
@@ -567,10 +567,10 @@ export async function processJsonRpcRequest(rpc: JsonRpcRequest, user: McpUser):
                         }
                     },
                     serverInfo: {
-                        name: "webotapp-whatsapp-mcp",
+                        name: "WAFlow-whatsapp-mcp",
                         version: "1.5.4"
                     },
-                    instructions: "This MCP server provides full access to your WeBotApp WhatsApp Gateway. You can send messages, check phone registrations, query active chats, and inspect connected WhatsApp sessions."
+                    instructions: "This MCP server provides full access to your WAFlow WhatsApp Gateway. You can send messages, check phone registrations, query active chats, and inspect connected WhatsApp sessions."
                 }
             };
 

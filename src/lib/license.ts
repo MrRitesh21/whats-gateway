@@ -61,17 +61,17 @@ export async function verifyAndSaveLicense(params: {
   }
 
   const cleanCode = purchase_code.trim().toUpperCase();
-  const labUrl = process.env.WEBOTAPP_LAB_URL || 'https://lab.webotapp.com';
+  const labUrl = process.env.WAFlow_LAB_URL || 'https://lab.WAFlow.com';
 
   try {
-    // 1. Verify code with WebotApp Lab Central API
+    // 1. Verify code with WAFlow Lab Central API
     const verifyRes = await fetch(`${labUrl}/api/verify-license`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         purchase_code: cleanCode,
         domain: domain || 'localhost',
-        email: customer_email || 'client@webotapp.com'
+        email: customer_email || 'client@WAFlow.com'
       })
     });
 
@@ -80,13 +80,13 @@ export async function verifyAndSaveLicense(params: {
     if (!verifyRes.ok || !verifyData.valid) {
       return {
         success: false,
-        message: verifyData.message || 'Invalid purchase code. Please obtain a valid license from your WebotApp Lab dashboard.'
+        message: verifyData.message || 'Invalid purchase code. Please obtain a valid license from your WAFlow Lab dashboard.'
       };
     }
 
     const licenseType = detectLicenseType(cleanCode);
 
-    // 2. Record installation at WebotApp Lab
+    // 2. Record installation at WAFlow Lab
     try {
       await fetch(`${labUrl}/api/installations`, {
         method: 'POST',
@@ -95,7 +95,7 @@ export async function verifyAndSaveLicense(params: {
           purchase_code: cleanCode,
           domain: domain || 'localhost',
           customer_name: customer_name || 'Admin',
-          customer_email: customer_email || 'client@webotapp.com',
+          customer_email: customer_email || 'client@WAFlow.com',
           customer_phone: '',
           version: '1.0.0',
           installation_type: 'production'
@@ -114,8 +114,8 @@ export async function verifyAndSaveLicense(params: {
       domain: domain || 'localhost',
       activated_at: new Date().toISOString(),
       token: crypto.randomBytes(16).toString('hex'),
-      updates_until: verifyData.license?.updates_until || (licenseType === 'extended' ? 'Lifetime' : new Date(Date.now() + 365*24*60*60*1000).toISOString()),
-      support_until: verifyData.license?.support_until || (licenseType === 'extended' ? 'Lifetime' : new Date(Date.now() + 365*24*60*60*1000).toISOString())
+      updates_until: verifyData.license?.updates_until || (licenseType === 'extended' ? 'Lifetime' : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()),
+      support_until: verifyData.license?.support_until || (licenseType === 'extended' ? 'Lifetime' : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString())
     };
 
     fs.writeFileSync(LICENSE_FILE, JSON.stringify(licensePayload, null, 2));
@@ -126,10 +126,10 @@ export async function verifyAndSaveLicense(params: {
       data: licensePayload
     };
   } catch (err: any) {
-    console.error('[License] Error validating license with WebotApp Lab:', err);
+    console.error('[License] Error validating license with WAFlow Lab:', err);
     return {
       success: false,
-      message: 'Could not connect to WebotApp Lab license verification server. Please check your internet connection.'
+      message: 'Could not connect to WAFlow Lab license verification server. Please check your internet connection.'
     };
   }
 }

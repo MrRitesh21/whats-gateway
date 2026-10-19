@@ -19,7 +19,7 @@ export async function GET() {
     const fallback = {
       openapi: "3.0.0",
       info: {
-        title: "WebotApp WhatsApp API Documentation",
+        title: "WAFlow WhatsApp API Documentation",
         version: "1.2.0",
         description:
           "⚠️ Failed to load full specification on server. Check server logs. " +
