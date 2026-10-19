@@ -12,41 +12,50 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ status: false, message: "Unauthorized" }, { status: 401 });
 
     try {
-        const formData = await request.formData();
-        const file = formData.get("file") as File;
-
-        if (!file) {
-            return NextResponse.json({ status: false, message: "No file provided" }, { status: 400 });
+        const formData = await request.formData().catch(() => null);
+        if (!formData) {
+            return NextResponse.json({ status: false, message: "Invalid multipart form data" }, { status: 400 });
         }
 
-        // Validate file type
-        const allowedTypes = ["image/jpeg", "image/png", "image/webp", "video/mp4"];
-        if (!allowedTypes.includes(file.type)) {
-            return NextResponse.json({ status: false, message: "Only JPG, PNG, WebP, and MP4 allowed" }, { status: 400 });
+        const rawFile = formData.get("file");
+        if (!rawFile || typeof rawFile === "string" || typeof (rawFile as any).arrayBuffer !== "function") {
+            return NextResponse.json({ status: false, message: "No valid file uploaded" }, { status: 400 });
         }
 
-        // Validate file size. Data URI disimpan di DB, jadi batasi lebih kecil (4MB)
-        // agar tidak membebani DB/loading. Video besar sebaiknya pakai URL eksternal.
-        const MAX = 4 * 1024 * 1024;
+        const file = rawFile as File;
+        const mime = (file.type || "").toLowerCase();
+        const ext = file.name ? file.name.substring(file.name.lastIndexOf(".")).toLowerCase() : "";
+
+        // Determine general media category
+        let type: "image" | "video" | "document" = "document";
+        if (mime.startsWith("image/") || [".jpg", ".jpeg", ".png", ".webp", ".gif"].includes(ext)) {
+            type = "image";
+        } else if (mime.startsWith("video/") || [".mp4", ".mov", ".mkv", ".3gp", ".webm"].includes(ext)) {
+            type = "video";
+        } else {
+            type = "document";
+        }
+
+        // Limit size: 16MB
+        const MAX = 16 * 1024 * 1024;
         if (file.size > MAX) {
             return NextResponse.json(
-                { status: false, message: "File terlalu besar (maks 4MB untuk media tersimpan). Untuk file besar, pakai URL media eksternal." },
+                { status: false, message: "File exceeds 16MB limit. Please attach a smaller file or use an external URL." },
                 { status: 400 }
             );
         }
 
         const buffer = Buffer.from(await file.arrayBuffer());
-        const dataUri = `data:${file.type};base64,${buffer.toString("base64")}`;
-        const type = file.type.startsWith("image") ? "image" : "video";
+        const mimeType = mime || (type === "image" ? "image/jpeg" : type === "video" ? "video/mp4" : "application/octet-stream");
+        const dataUri = `data:${mimeType};base64,${buffer.toString("base64")}`;
 
         return NextResponse.json({
             status: true,
-            message: "File uploaded",
-            // url = data URI (disimpan di DB). filename hanya untuk tampilan.
+            message: "File uploaded successfully",
             data: { url: dataUri, filename: file.name, type }
         });
-    } catch (error) {
+    } catch (error: any) {
         console.error("Upload error:", error);
-        return NextResponse.json({ status: false, message: "Upload failed" }, { status: 500 });
+        return NextResponse.json({ status: false, message: error?.message || "Upload failed" }, { status: 400 });
     }
 }

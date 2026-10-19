@@ -606,8 +606,13 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ status: false, message: "Unauthorized" }, { status: 401 });
         }
 
-        const body = await request.json();
-        const action = body.action || "start";
+        let body: any;
+        try {
+            body = await request.json();
+        } catch {
+            return NextResponse.json({ status: false, message: "Invalid JSON request payload" }, { status: 400 });
+        }
+        const action = body?.action || "start";
 
         // ── Action: PAUSE ─────────────────────────────────────────────────────
         if (action === "pause") {

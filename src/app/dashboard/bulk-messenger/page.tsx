@@ -103,25 +103,31 @@ export default function BulkMessengerPage() {
                 method: "POST",
                 body: formData,
             });
-            const data = await res.json();
+            const data = await res.json().catch(() => ({ status: false, message: "Upload failed" }));
             if (data.status && data.data?.url) {
                 setMediaUrl(data.data.url);
                 toast.success(`Attached "${file.name}" successfully!`);
-            } else {
+            } else if (file.size <= 4 * 1024 * 1024) {
                 const reader = new FileReader();
                 reader.onload = () => {
                     setMediaUrl(reader.result as string);
                     toast.success(`Attached "${file.name}"!`);
                 };
                 reader.readAsDataURL(file);
+            } else {
+                toast.error(data.message || `File "${file.name}" is too large. Max size is 16MB.`);
             }
-        } catch {
-            const reader = new FileReader();
-            reader.onload = () => {
-                setMediaUrl(reader.result as string);
-                toast.success(`Attached "${file.name}"!`);
-            };
-            reader.readAsDataURL(file);
+        } catch (err: any) {
+            if (file.size <= 4 * 1024 * 1024) {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    setMediaUrl(reader.result as string);
+                    toast.success(`Attached "${file.name}"!`);
+                };
+                reader.readAsDataURL(file);
+            } else {
+                toast.error(err?.message || `Failed to upload "${file.name}"`);
+            }
         } finally {
             setUploadingMedia(false);
         }
@@ -263,6 +269,9 @@ export default function BulkMessengerPage() {
         const socket = createAppSocket();
         socket.on("connect", () => {
             selectedSessions.forEach((sid) => socket.emit("join-session", sid));
+        });
+        socket.on("connect_error", () => {
+            // Transient connection glitch, socket.io will auto-reconnect
         });
 
         socket.on("bulk.progress", (data: BulkProgress) => {

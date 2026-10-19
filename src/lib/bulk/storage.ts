@@ -128,12 +128,17 @@ export async function getBulkCampaign(broadcastId: string): Promise<BulkCampaign
  */
 export async function saveBulkCampaign(campaign: BulkCampaignRecord): Promise<void> {
     const store = await getBulkHistory();
-    const idx = store.campaigns.findIndex((c) => c.broadcastId === campaign.broadcastId);
+    // Do not persist huge inline base64 data URIs into database JSON
+    const sanitizedRecord: BulkCampaignRecord = {
+        ...campaign,
+        mediaUrl: campaign.mediaUrl?.startsWith("data:") ? undefined : campaign.mediaUrl,
+    };
+    const idx = store.campaigns.findIndex((c) => c.broadcastId === sanitizedRecord.broadcastId);
 
     if (idx >= 0) {
-        store.campaigns[idx] = { ...store.campaigns[idx], ...campaign };
+        store.campaigns[idx] = { ...store.campaigns[idx], ...sanitizedRecord };
     } else {
-        store.campaigns.unshift(campaign);
+        store.campaigns.unshift(sanitizedRecord);
     }
 
     await saveBulkHistory(store);
