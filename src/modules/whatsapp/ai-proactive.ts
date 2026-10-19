@@ -13,20 +13,7 @@ const contactedWithin24h = new Map<string, number>();
 export async function runAIProactiveFollowupCheck(): Promise<void> {
     try {
         const { getAIGatewayData } = await import("@/lib/ai-gateway/storage");
-        // Find the owner of this session to ensure user isolation
-        const sessionRecord = await prisma.session.findUnique({
-            where: { sessionId },
-            select: { userId: true },
-        }).catch(() => null);
-        const sessionUserId = sessionRecord?.userId || undefined;
-
-        const aiData = await getAIGatewayData(sessionUserId);
-        const ragConfig = aiData.ragConfig;
-
-        // Only run if AI auto-reply is globally configured and at least one AI account is active
-        if (!ragCfg.enableWhatsAppAutoReply) return;
-        const activeAccounts = aiData.accounts.filter(a => a.isActive);
-        if (activeAccounts.length === 0) return;
+        const { executeSmartChat } = await import("@/lib/ai-gateway/gateway");
 
         const now = Date.now();
         const minSilenceMs = 20 * 60 * 1000;   // At least 20 minutes of silence
@@ -40,10 +27,14 @@ export async function runAIProactiveFollowupCheck(): Promise<void> {
         // Find active sessions in database
         const activeSessions = await prisma.session.findMany({
             where: { status: "CONNECTED" },
-            select: { id: true, sessionId: true, name: true }
+            select: { id: true, sessionId: true, name: true, userId: true }
         });
 
         for (const session of activeSessions) {
+            const aiData = await getAIGatewayData(session.userId);
+            const ragCfg = aiData.ragConfig;
+            if (!ragCfg.enableWhatsAppAutoReply) continue;
+
             // Check if session is enabled in RAG config
             if (ragCfg.whatsappSessions?.length && !ragCfg.whatsappSessions.includes(session.sessionId)) {
                 continue;
@@ -122,10 +113,10 @@ DECIDE:
 `;
 
                 try {
-                    const { executeSmartChat } = await import("@/lib/ai-gateway/gateway");
                     const evaluation = await executeSmartChat({
                         question: evaluationQuestion,
                         useRAG: false,
+                        userId: session.userId,
                     });
 
                     const reply = evaluation.answer?.trim();
