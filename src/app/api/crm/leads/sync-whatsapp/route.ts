@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ status: false, message: "Forbidden - Cannot access session" }, { status: 403 });
         }
 
-        const result = await syncContactsFromWhatsApp(sessionId);
+        const result = await syncContactsFromWhatsApp(sessionId, user.id);
 
         return NextResponse.json({
             status: true,

@@ -53,6 +53,7 @@ interface ActiveCampaignState {
     current?: string | null;
     currentSession?: string | null;
     recipients: BulkRecipientItem[];
+    userId?: string;
     source?: "manual" | "crm" | "csv";
     faultTolerance: FaultToleranceConfig;
     faultStats: FaultToleranceStats;
@@ -360,7 +361,7 @@ async function runCampaignWorker(campaign: ActiveCampaignState) {
                 }
 
                 if (recipient.leadId) {
-                    markLeadContacted(recipient.leadId).catch(() => {});
+                    markLeadContacted(recipient.leadId, undefined, campaign.userId).catch(() => {});
                 }
             } catch (e: any) {
                 lastError = e?.output?.payload?.message || e?.message || "Delivery failed";
@@ -936,6 +937,7 @@ export async function POST(request: NextRequest) {
             current: null,
             currentSession: initialConnected[0],
             recipients: recipientItems,
+            userId: user.id,
             source,
             faultTolerance: faultToleranceConfig,
             faultStats,

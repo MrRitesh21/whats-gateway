@@ -284,13 +284,15 @@ export async function bindAutoReply(sock: WASocket, sessionId: string) {
                                     // Automatically record scheduled meeting in CRM as QUALIFIED/HOT lead!
                                     try {
                                         const { getCRMData, saveCRMData } = await import("@/lib/crm/storage");
-                                        const crmStore = await getCRMData();
+                                        const targetCrmUserId = session?.userId;
+                                        const crmStore = await getCRMData(targetCrmUserId);
                                         const cleanPhone = (phoneJid || remoteJid).replace(/@.*$/, "").replace(/[^0-9]/g, "");
                                         let lead = crmStore.leads.find((l: any) => l.whatsappJid === phoneJid || l.whatsappJid === remoteJid || l.formattedPhone === cleanPhone);
 
                                         if (lead) {
                                             lead.stage = "QUALIFIED";
                                             lead.priority = "HOT";
+                                            lead.userId = lead.userId || targetCrmUserId;
                                             lead.followUpDate = meetingTime;
                                             lead.followUpNote = `[AI Auto-Scheduled Demo]: ${meetingTime} | Topic: ${meetingTopic}. Note: ${meetingNotes}`;
                                             lead.activities = lead.activities || [];
@@ -305,6 +307,7 @@ export async function bindAutoReply(sock: WASocket, sessionId: string) {
                                             const leadWaJid = phoneJid.endsWith("@s.whatsapp.net") ? phoneJid : `${cleanPhone}@s.whatsapp.net`;
                                             crmStore.leads.unshift({
                                                 id: Math.random().toString(36).substring(7),
+                                                userId: targetCrmUserId,
                                                 name: meetingTopic !== "Product Demo" ? meetingTopic : "WhatsApp Lead",
                                                 phone: cleanPhone,
                                                 formattedPhone: cleanPhone,
@@ -319,7 +322,7 @@ export async function bindAutoReply(sock: WASocket, sessionId: string) {
                                                 updatedAt: new Date().toISOString(),
                                             });
                                         }
-                                        await saveCRMData(crmStore);
+                                        await saveCRMData(crmStore, targetCrmUserId);
                                         logger.success("AutoReply", `AI Auto-Scheduled Demo for ${remoteJid} at ${meetingTime}`);
                                     } catch (crmErr) {
                                         logger.error("AutoReply", "Failed to save AI meeting to CRM:", crmErr);

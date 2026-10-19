@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
         const isAll = limitParam === "all";
         const limit = isAll ? 100000 : parseInt(limitParam, 10) || 5000;
 
-        const data = await getCRMData();
+        const data = await getCRMData(user.id);
         const todayStr = new Date().toISOString().split("T")[0];
 
         let filtered = data.leads;
@@ -177,7 +177,7 @@ export async function POST(request: NextRequest) {
                 type: activity.type || "note",
                 content: activity.content.trim(),
                 author: user.email || "Agent",
-            });
+            }, user.id);
             return NextResponse.json({ status: true, message: "Activity logged", data: updated });
         }
 
@@ -195,6 +195,7 @@ export async function POST(request: NextRequest) {
         const now = new Date().toISOString();
         const leadToSave: Lead = {
             id: lead.id || `lead_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+            userId: user.id,
             name: lead.name.trim(),
             phone: lead.phone.trim(),
             formattedPhone: formatted,
@@ -226,7 +227,7 @@ export async function POST(request: NextRequest) {
             updatedAt: now,
         };
 
-        await saveLead(leadToSave);
+        await saveLead(leadToSave, user.id);
         return NextResponse.json({ status: true, message: "Lead saved successfully", data: leadToSave });
     } catch (e: any) {
         console.error("CRM Leads POST error", e);
@@ -248,11 +249,11 @@ export async function PATCH(request: NextRequest) {
         // Stage updates
         if (stage) {
             if (Array.isArray(ids) && ids.length > 0) {
-                const count = await batchUpdateStage(ids, stage as LeadStage);
+                const count = await batchUpdateStage(ids, stage as LeadStage, user.id);
                 return NextResponse.json({ status: true, message: `Updated ${count} leads to ${stage}` });
             }
             if (id) {
-                const updated = await updateLeadStage(id, stage as LeadStage, note);
+                const updated = await updateLeadStage(id, stage as LeadStage, note, user.id);
                 if (!updated) return NextResponse.json({ status: false, message: "Lead not found" }, { status: 404 });
                 return NextResponse.json({ status: true, message: `Lead updated to ${stage}`, data: updated });
             }
@@ -261,11 +262,11 @@ export async function PATCH(request: NextRequest) {
         // Priority updates
         if (priority) {
             if (Array.isArray(ids) && ids.length > 0) {
-                const count = await batchUpdatePriority(ids, priority as LeadPriority);
+                const count = await batchUpdatePriority(ids, priority as LeadPriority, user.id);
                 return NextResponse.json({ status: true, message: `Updated ${count} leads priority to ${priority}` });
             }
             if (id) {
-                const updated = await updateLeadPriority(id, priority as LeadPriority);
+                const updated = await updateLeadPriority(id, priority as LeadPriority, user.id);
                 if (!updated) return NextResponse.json({ status: false, message: "Lead not found" }, { status: 404 });
                 return NextResponse.json({ status: true, message: `Lead priority set to ${priority}`, data: updated });
             }
@@ -273,7 +274,7 @@ export async function PATCH(request: NextRequest) {
 
         // Follow-up updates
         if (id && (followUpDate !== undefined || followUpNote !== undefined)) {
-            const updated = await updateLeadFollowUp(id, followUpDate, followUpNote);
+            const updated = await updateLeadFollowUp(id, followUpDate, followUpNote, user.id);
             if (!updated) return NextResponse.json({ status: false, message: "Lead not found" }, { status: 404 });
             return NextResponse.json({ status: true, message: "Follow-up updated", data: updated });
         }
@@ -299,12 +300,12 @@ export async function DELETE(request: NextRequest) {
         const ids = body.ids;
 
         if (Array.isArray(ids) && ids.length > 0) {
-            const deleted = await deleteLeads(ids);
+            const deleted = await deleteLeads(ids, user.id);
             return NextResponse.json({ status: true, message: `Deleted ${deleted} leads` });
         }
 
         if (id) {
-            const ok = await deleteLead(id);
+            const ok = await deleteLead(id, user.id);
             if (!ok) return NextResponse.json({ status: false, message: "Lead not found" }, { status: 404 });
             return NextResponse.json({ status: true, message: "Lead deleted" });
         }

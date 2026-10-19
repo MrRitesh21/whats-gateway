@@ -61,6 +61,7 @@ export async function handleFormSubmission(params: {
     const leadId = `lead_${formattedPhone}_${Date.now()}`;
     const leadToSave: Lead = {
         id: leadId,
+        userId: form.userId,
         name: name.trim(),
         phone: rawPhone.trim(),
         formattedPhone,
@@ -85,7 +86,7 @@ export async function handleFormSubmission(params: {
     };
 
     try {
-        await saveLead(leadToSave);
+        await saveLead(leadToSave, form.userId);
     } catch (saveErr) {
         logger.error("Forms", "Failed saving lead to CRM", saveErr);
     }
@@ -105,7 +106,7 @@ export async function handleFormSubmission(params: {
 
             // Generate outreach message
             if (form.outreachMode === "ai_personalized") {
-                const aiData = await getAIGatewayData().catch(() => null);
+                const aiData = await getAIGatewayData(form.userId).catch(() => null);
                 const hasActiveAi = aiData && aiData.accounts.some((a) => a.isActive);
 
                 if (hasActiveAi) {
@@ -128,6 +129,7 @@ RULES:
                     const aiResult = await executeSmartChat({
                         question: prompt,
                         useRAG: false, // Fast LLM response without blocking on vector similarity
+                        userId: form.userId,
                     });
                     outreachMessage = (aiResult?.answer || "").trim();
                 }
@@ -162,7 +164,7 @@ RULES:
                 createdAt: new Date().toISOString(),
                 author: "AI Outreach Agent",
             });
-            await saveLead(leadToSave).catch(() => {});
+            await saveLead(leadToSave, form.userId).catch(() => {});
         } catch (err: any) {
             outreachStatus = "FAILED";
             errorMessage = err.message || "Failed to send WhatsApp message";
@@ -186,7 +188,7 @@ RULES:
         createdAt: now,
     };
 
-    await recordSubmission(submissionRecord).catch((e) => {
+    await recordSubmission(submissionRecord, form.userId).catch((e) => {
         logger.error("Forms", "Failed to record submission", e);
     });
 

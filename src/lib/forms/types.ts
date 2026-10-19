@@ -16,6 +16,7 @@ export type FormTheme = "emerald" | "dark" | "slate" | "indigo" | "minimal" | "c
 
 export interface LeadForm {
     id: string; // unique slug e.g. "website-contact"
+    userId?: string;
     title: string;
     description?: string;
     fields: FormField[];
@@ -54,6 +55,7 @@ export interface LeadForm {
 
 export interface FormSubmission {
     id: string;
+    userId?: string;
     formId: string;
     data: Record<string, string>; // field values
     leadId?: string; // Reference to CRM lead

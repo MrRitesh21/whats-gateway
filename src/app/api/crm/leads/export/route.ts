@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
         const { searchParams } = new URL(request.url);
         const stage = searchParams.get("stage");
 
-        const data = await getCRMData();
+        const data = await getCRMData(user.id);
         let leads = data.leads;
 
         if (stage && stage !== "ALL") {

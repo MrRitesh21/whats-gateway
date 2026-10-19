@@ -14,7 +14,29 @@ import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 
 const DATA_DIR = path.join(process.cwd(), "data");
-const CRM_FILE = path.join(DATA_DIR, "crm-leads.json");
+const DEFAULT_CRM_FILE = path.join(DATA_DIR, "crm-leads.json");
+
+function normalizeKey(userId?: string): string {
+    if (!userId || typeof userId !== "string") return "default";
+    const trimmed = userId.trim();
+    if (!trimmed || trimmed === "default") return "default";
+    return trimmed;
+}
+
+function getCacheKey(userId?: string): string {
+    const key = normalizeKey(userId);
+    return key === "default" ? "default" : `user_${key}`;
+}
+
+function getConfigFile(userId?: string): string {
+    const key = normalizeKey(userId);
+    return key === "default" ? DEFAULT_CRM_FILE : path.join(DATA_DIR, `crm-leads-${key}.json`);
+}
+
+function getRecordId(userId?: string): string {
+    const key = normalizeKey(userId);
+    return key === "default" ? "default" : `user_${key}`;
+}
 
 const DEFAULT_CRM_DATA: CRMStoreData = {
     leads: [],
@@ -29,118 +51,175 @@ const DEFAULT_CRM_DATA: CRMStoreData = {
     ],
 };
 
-let inMemoryCache: CRMStoreData | null = null;
-let lastReadTime = 0;
+interface CacheEntry {
+    data: CRMStoreData;
+    lastReadTime: number;
+}
+const inMemoryCaches = new Map<string, CacheEntry>();
 const CACHE_TTL = 3000;
 
-export async function getCRMData(): Promise<CRMStoreData> {
+export async function getCRMData(userId?: string): Promise<CRMStoreData> {
+    const key = getCacheKey(userId);
     const now = Date.now();
-    if (inMemoryCache && now - lastReadTime < CACHE_TTL) {
-        return inMemoryCache;
+    const cached = inMemoryCaches.get(key);
+    if (cached && now - cached.lastReadTime < CACHE_TTL) {
+        return cached.data;
     }
+
+    const recordId = getRecordId(userId);
+    const configFile = getConfigFile(userId);
+    const userKey = normalizeKey(userId);
 
     try {
         // 1. Read from PostgreSQL SystemConfig (persistent across redeploys)
         const cfg = await prisma.systemConfig.findUnique({
-            where: { id: "default" },
+            where: { id: recordId },
             select: { crmData: true },
         }).catch(() => null);
 
         if (cfg?.crmData && typeof cfg.crmData === "object") {
             const parsed = cfg.crmData as any;
-            inMemoryCache = {
-                leads: Array.isArray(parsed.leads) ? parsed.leads : DEFAULT_CRM_DATA.leads,
+            const leads = Array.isArray(parsed.leads) ? parsed.leads : DEFAULT_CRM_DATA.leads;
+            const taggedLeads: Lead[] = key === "default"
+                ? leads
+                : leads.map((l: Lead) => ({ ...l, userId: l.userId || userKey }));
+
+            const data: CRMStoreData = {
+                leads: taggedLeads,
                 customStages: Array.isArray(parsed.customStages) ? parsed.customStages : DEFAULT_CRM_DATA.customStages,
             };
-            lastReadTime = now;
+            inMemoryCaches.set(key, { data, lastReadTime: now });
             // Mirror to local disk in background
             fs.mkdir(DATA_DIR, { recursive: true })
-                .then(() => fs.writeFile(CRM_FILE, JSON.stringify(inMemoryCache, null, 2), "utf-8"))
+                .then(() => fs.writeFile(configFile, JSON.stringify(data, null, 2), "utf-8"))
                 .catch(() => {});
-            return inMemoryCache;
+            return data;
         }
 
         // 2. Fallback to local file if DB doesn't have it yet
         await fs.mkdir(DATA_DIR, { recursive: true });
-        const raw = await fs.readFile(CRM_FILE, "utf-8");
+        const raw = await fs.readFile(configFile, "utf-8");
         const parsed = JSON.parse(raw);
-        inMemoryCache = {
-            leads: Array.isArray(parsed.leads) ? parsed.leads : DEFAULT_CRM_DATA.leads,
+        const leads = Array.isArray(parsed.leads) ? parsed.leads : DEFAULT_CRM_DATA.leads;
+        const taggedLeads: Lead[] = key === "default"
+            ? leads
+            : leads.map((l: Lead) => ({ ...l, userId: l.userId || userKey }));
+
+        const data: CRMStoreData = {
+            leads: taggedLeads,
             customStages: Array.isArray(parsed.customStages) ? parsed.customStages : DEFAULT_CRM_DATA.customStages,
         };
-        lastReadTime = now;
+        inMemoryCaches.set(key, { data, lastReadTime: now });
 
         // Seed into PostgreSQL
         await prisma.systemConfig.upsert({
-            where: { id: "default" },
-            update: { crmData: inMemoryCache as any },
-            create: { id: "default", crmData: inMemoryCache as any },
+            where: { id: recordId },
+            update: { crmData: data as any },
+            create: { id: recordId, crmData: data as any },
         }).catch(() => null);
 
-        return inMemoryCache;
+        return data;
     } catch {
-        inMemoryCache = JSON.parse(JSON.stringify(DEFAULT_CRM_DATA));
-        lastReadTime = now;
-        saveCRMData(DEFAULT_CRM_DATA).catch((e) => {
-            logger.error("CRM", "Failed to create default CRM storage file", e);
-        });
-        return inMemoryCache!;
+        // If neither exists for this user:
+        // Initial migration for superadmin if legacy default had leads:
+        if (key !== "default" && userKey === "cmvdpdy2j00011t8kodp9jhy8") {
+            try {
+                const defaultData = await getCRMData("default");
+                if (defaultData.leads.length > 0) {
+                    const migrated: CRMStoreData = {
+                        leads: defaultData.leads.map((l) => ({ ...l, userId: userKey })),
+                        customStages: defaultData.customStages || DEFAULT_CRM_DATA.customStages,
+                    };
+                    inMemoryCaches.set(key, { data: migrated, lastReadTime: now });
+                    saveCRMData(migrated, userId).catch(() => {});
+                    return migrated;
+                }
+            } catch {}
+        }
+
+        // For all other users/tenants: Clean isolated slate with zero cross-tenant leakage!
+        const fresh: CRMStoreData = {
+            leads: key === "default" ? DEFAULT_CRM_DATA.leads : [],
+            customStages: DEFAULT_CRM_DATA.customStages,
+        };
+        inMemoryCaches.set(key, { data: fresh, lastReadTime: now });
+
+        if (key === "default") {
+            saveCRMData(DEFAULT_CRM_DATA, "default").catch((e) => {
+                logger.error("CRM", "Failed to create default CRM storage file", e);
+            });
+        }
+        return fresh;
     }
 }
 
-export async function saveCRMData(data: CRMStoreData): Promise<void> {
-    inMemoryCache = data;
-    lastReadTime = Date.now();
+export async function saveCRMData(data: CRMStoreData, userId?: string): Promise<void> {
+    const key = getCacheKey(userId);
+    const recordId = getRecordId(userId);
+    const configFile = getConfigFile(userId);
+
+    inMemoryCaches.set(key, { data, lastReadTime: Date.now() });
 
     // 1. Persist to PostgreSQL SystemConfig
     try {
         await prisma.systemConfig.upsert({
-            where: { id: "default" },
+            where: { id: recordId },
             update: { crmData: data as any },
-            create: { id: "default", crmData: data as any },
+            create: { id: recordId, crmData: data as any },
         });
     } catch (err) {
-        logger.error("CRM", "Failed to persist crmData to PostgreSQL", err);
+        logger.error("CRM", `Failed to persist crmData for ${key} to PostgreSQL`, err);
     }
 
     // 2. Mirror to local file
     try {
         await fs.mkdir(DATA_DIR, { recursive: true });
-        const tempFile = `${CRM_FILE}.tmp.${Date.now()}`;
+        const tempFile = `${configFile}.tmp.${Date.now()}`;
         await fs.writeFile(tempFile, JSON.stringify(data, null, 2), "utf-8");
-        await fs.rename(tempFile, CRM_FILE);
+        await fs.rename(tempFile, configFile);
     } catch {
         // Ephemeral disk write error is non-fatal
     }
 }
 
 /**
- * Import leads from a CSV string into the CRM store
+ * Import leads from a CSV string into the user's isolated CRM store
  */
-export async function importLeads(csvText: string): Promise<CSVImportResult> {
-    const data = await getCRMData();
+export async function importLeads(csvText: string, userId?: string): Promise<CSVImportResult> {
+    const data = await getCRMData(userId);
     const existingPhoneSet = new Set(data.leads.map((l) => l.formattedPhone));
 
     const result = parseLeadsFromCSV(csvText, existingPhoneSet);
+    const userKey = userId ? normalizeKey(userId) : undefined;
     if (result.leads.length > 0) {
-        data.leads.unshift(...result.leads);
-        await saveCRMData(data);
+        const taggedLeads = result.leads.map((l) => ({
+            ...l,
+            userId: userKey,
+        }));
+        data.leads.unshift(...taggedLeads);
+        await saveCRMData(data, userId);
+        result.leads = taggedLeads;
     }
 
     return result;
 }
 
 /**
- * Save or update a single lead
+ * Save or update a single lead in user's isolated CRM store
  */
-export async function saveLead(lead: Lead): Promise<Lead> {
-    const data = await getCRMData();
+export async function saveLead(lead: Lead, userId?: string): Promise<Lead> {
+    const targetUserId = userId || lead.userId;
+    const data = await getCRMData(targetUserId);
+    if (targetUserId) {
+        lead.userId = normalizeKey(targetUserId);
+    }
     const idx = data.leads.findIndex((l) => l.id === lead.id);
     if (idx >= 0) {
         const existing = data.leads[idx];
         data.leads[idx] = {
             ...existing,
             ...lead,
+            userId: lead.userId || existing.userId || (targetUserId ? normalizeKey(targetUserId) : undefined),
             activities: lead.activities || existing.activities || [],
             updatedAt: new Date().toISOString()
         };
@@ -157,15 +236,15 @@ export async function saveLead(lead: Lead): Promise<Lead> {
         }
         data.leads.unshift(lead);
     }
-    await saveCRMData(data);
+    await saveCRMData(data, targetUserId);
     return lead;
 }
 
 /**
  * Update lead stage with optional activity note
  */
-export async function updateLeadStage(id: string, stage: LeadStage, note?: string): Promise<Lead | null> {
-    const data = await getCRMData();
+export async function updateLeadStage(id: string, stage: LeadStage, note?: string, userId?: string): Promise<Lead | null> {
+    const data = await getCRMData(userId);
     const target = data.leads.find((l) => l.id === id);
     if (!target) return null;
 
@@ -184,15 +263,15 @@ export async function updateLeadStage(id: string, stage: LeadStage, note?: strin
         createdAt: new Date().toISOString(),
     });
 
-    await saveCRMData(data);
+    await saveCRMData(data, userId);
     return target;
 }
 
 /**
  * Update lead priority (HOT, WARM, COLD)
  */
-export async function updateLeadPriority(id: string, priority: LeadPriority): Promise<Lead | null> {
-    const data = await getCRMData();
+export async function updateLeadPriority(id: string, priority: LeadPriority, userId?: string): Promise<Lead | null> {
+    const data = await getCRMData(userId);
     const target = data.leads.find((l) => l.id === id);
     if (!target) return null;
 
@@ -207,7 +286,7 @@ export async function updateLeadPriority(id: string, priority: LeadPriority): Pr
         createdAt: new Date().toISOString(),
     });
 
-    await saveCRMData(data);
+    await saveCRMData(data, userId);
     return target;
 }
 
@@ -216,9 +295,10 @@ export async function updateLeadPriority(id: string, priority: LeadPriority): Pr
  */
 export async function addLeadActivity(
     leadId: string,
-    activity: Omit<LeadActivity, "id" | "createdAt">
+    activity: Omit<LeadActivity, "id" | "createdAt">,
+    userId?: string
 ): Promise<Lead | null> {
-    const data = await getCRMData();
+    const data = await getCRMData(userId);
     const target = data.leads.find((l) => l.id === leadId);
     if (!target) return null;
 
@@ -230,7 +310,7 @@ export async function addLeadActivity(
     });
     target.updatedAt = new Date().toISOString();
 
-    await saveCRMData(data);
+    await saveCRMData(data, userId);
     return target;
 }
 
@@ -240,9 +320,10 @@ export async function addLeadActivity(
 export async function updateLeadFollowUp(
     id: string,
     followUpDate?: string,
-    followUpNote?: string
+    followUpNote?: string,
+    userId?: string
 ): Promise<Lead | null> {
-    const data = await getCRMData();
+    const data = await getCRMData(userId);
     const target = data.leads.find((l) => l.id === id);
     if (!target) return null;
 
@@ -260,19 +341,19 @@ export async function updateLeadFollowUp(
         });
     }
 
-    await saveCRMData(data);
+    await saveCRMData(data, userId);
     return target;
 }
 
 /**
  * Delete a lead
  */
-export async function deleteLead(id: string): Promise<boolean> {
-    const data = await getCRMData();
+export async function deleteLead(id: string, userId?: string): Promise<boolean> {
+    const data = await getCRMData(userId);
     const prevLen = data.leads.length;
     data.leads = data.leads.filter((l) => l.id !== id);
     if (data.leads.length !== prevLen) {
-        await saveCRMData(data);
+        await saveCRMData(data, userId);
         return true;
     }
     return false;
@@ -281,14 +362,14 @@ export async function deleteLead(id: string): Promise<boolean> {
 /**
  * Batch delete leads
  */
-export async function deleteLeads(ids: string[]): Promise<number> {
+export async function deleteLeads(ids: string[], userId?: string): Promise<number> {
     const idSet = new Set(ids);
-    const data = await getCRMData();
+    const data = await getCRMData(userId);
     const prevLen = data.leads.length;
     data.leads = data.leads.filter((l) => !idSet.has(l.id));
     const deletedCount = prevLen - data.leads.length;
     if (deletedCount > 0) {
-        await saveCRMData(data);
+        await saveCRMData(data, userId);
     }
     return deletedCount;
 }
@@ -296,9 +377,9 @@ export async function deleteLeads(ids: string[]): Promise<number> {
 /**
  * Batch update stage
  */
-export async function batchUpdateStage(ids: string[], stage: LeadStage): Promise<number> {
+export async function batchUpdateStage(ids: string[], stage: LeadStage, userId?: string): Promise<number> {
     const idSet = new Set(ids);
-    const data = await getCRMData();
+    const data = await getCRMData(userId);
     let updatedCount = 0;
     const now = new Date().toISOString();
 
@@ -319,7 +400,7 @@ export async function batchUpdateStage(ids: string[], stage: LeadStage): Promise
     }
 
     if (updatedCount > 0) {
-        await saveCRMData(data);
+        await saveCRMData(data, userId);
     }
     return updatedCount;
 }
@@ -327,9 +408,9 @@ export async function batchUpdateStage(ids: string[], stage: LeadStage): Promise
 /**
  * Batch update priority
  */
-export async function batchUpdatePriority(ids: string[], priority: LeadPriority): Promise<number> {
+export async function batchUpdatePriority(ids: string[], priority: LeadPriority, userId?: string): Promise<number> {
     const idSet = new Set(ids);
-    const data = await getCRMData();
+    const data = await getCRMData(userId);
     let updatedCount = 0;
     const now = new Date().toISOString();
 
@@ -342,7 +423,7 @@ export async function batchUpdatePriority(ids: string[], priority: LeadPriority)
     }
 
     if (updatedCount > 0) {
-        await saveCRMData(data);
+        await saveCRMData(data, userId);
     }
     return updatedCount;
 }
@@ -350,9 +431,9 @@ export async function batchUpdatePriority(ids: string[], priority: LeadPriority)
 /**
  * Mark a lead as contacted and timestamp it
  */
-export async function markLeadContacted(id: string, note?: string): Promise<void> {
+export async function markLeadContacted(id: string, note?: string, userId?: string): Promise<void> {
     try {
-        const data = await getCRMData();
+        const data = await getCRMData(userId);
         const target = data.leads.find((l) => l.id === id);
         if (target) {
             const now = new Date().toISOString();
@@ -368,7 +449,7 @@ export async function markLeadContacted(id: string, note?: string): Promise<void
                 content: note || "WhatsApp bulk message delivered",
                 createdAt: now,
             });
-            await saveCRMData(data);
+            await saveCRMData(data, userId);
         }
     } catch (e) {
         logger.error("CRM", `Failed to mark lead ${id} as contacted`, e);
@@ -378,22 +459,25 @@ export async function markLeadContacted(id: string, note?: string): Promise<void
 /**
  * Sync Contacts directly from a connected WhatsApp session into CRM
  */
-export async function syncContactsFromWhatsApp(sessionId: string): Promise<WhatsAppSyncResult> {
+export async function syncContactsFromWhatsApp(sessionId: string, userId?: string): Promise<WhatsAppSyncResult> {
     const dbSession = await prisma.session.findFirst({
         where: { OR: [{ id: sessionId }, { sessionId }] },
-        select: { id: true, sessionId: true }
+        select: { id: true, sessionId: true, userId: true }
     });
 
     if (!dbSession) {
         throw new Error("WhatsApp session not found");
     }
 
+    const targetUserId = userId || dbSession.userId;
+    const userKey = targetUserId ? normalizeKey(targetUserId) : undefined;
+
     const contacts = await prisma.contact.findMany({
         where: { sessionId: dbSession.id },
         select: { jid: true, name: true, notify: true, remoteJidAlt: true }
     });
 
-    const data = await getCRMData();
+    const data = await getCRMData(targetUserId);
     const existingPhones = new Set(data.leads.map((l) => l.formattedPhone));
     const newLeads: Lead[] = [];
     let skippedDuplicates = 0;
@@ -415,6 +499,7 @@ export async function syncContactsFromWhatsApp(sessionId: string): Promise<Whats
 
         const lead: Lead = {
             id: `lead_wa_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            userId: userKey,
             name,
             phone: phoneDigits,
             formattedPhone: phoneDigits,
@@ -442,7 +527,7 @@ export async function syncContactsFromWhatsApp(sessionId: string): Promise<Whats
 
     if (newLeads.length > 0) {
         data.leads.unshift(...newLeads);
-        await saveCRMData(data);
+        await saveCRMData(data, targetUserId);
     }
 
     return {

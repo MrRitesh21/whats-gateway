@@ -19,6 +19,7 @@ export interface LeadActivity {
 
 export interface Lead {
     id: string;
+    userId?: string;
     name: string;
     phone: string;
     formattedPhone: string; // e.g. "919935370814"

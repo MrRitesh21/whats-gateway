@@ -19,7 +19,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ form
         if (authHeader || hasAuthCookie) {
             const user = await getAuthenticatedUser(req).catch(() => null);
             if (user) {
-                const allData = await getFormsData();
+                const allData = await getFormsData(user.id);
                 submissions = allData.submissions.filter((s) => s.formId === formId);
             }
         }
@@ -48,7 +48,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ form
         }
 
         const { formId } = await params;
-        const existing = await getFormById(formId);
+        const existing = await getFormById(formId, user.id);
         if (!existing) {
             return NextResponse.json({ status: false, message: "Form not found" }, { status: 404 });
         }
@@ -58,8 +58,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ form
             ...existing,
             ...body,
             id: formId, // Immutable ID
+            userId: existing.userId || user.id,
             updatedAt: new Date().toISOString(),
-        });
+        }, user.id);
 
         return NextResponse.json({
             status: true,
@@ -83,7 +84,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ f
         }
 
         const { formId } = await params;
-        const deleted = await deleteForm(formId);
+        const deleted = await deleteForm(formId, user.id);
         if (!deleted) {
             return NextResponse.json({ status: false, message: "Form not found" }, { status: 404 });
         }

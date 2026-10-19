@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ status: false, message: "CSV content cannot be empty" }, { status: 400 });
         }
 
-        const result = await importLeads(csvContent);
+        const result = await importLeads(csvContent, user.id);
 
         return NextResponse.json({
             status: true,

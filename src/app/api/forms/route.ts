@@ -12,10 +12,12 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ status: false, message: "Unauthorized" }, { status: 401 });
         }
 
-        const data = await getFormsData();
+        const data = await getFormsData(user.id);
 
         // Fetch available connected sessions so UI can populate dropdown
+        const sessionFilter = user.role === "SUPERADMIN" ? {} : { userId: user.id };
         const sessions = await prisma.session.findMany({
+            where: sessionFilter,
             select: {
                 id: true,
                 sessionId: true,
@@ -58,6 +60,7 @@ export async function POST(req: NextRequest) {
 
         const form: LeadForm = {
             id,
+            userId: user.id,
             title: body.title.trim(),
             description: body.description || "",
             fields: Array.isArray(body.fields) && body.fields.length > 0 ? body.fields : [
@@ -91,7 +94,7 @@ export async function POST(req: NextRequest) {
             updatedAt: new Date().toISOString(),
         };
 
-        const saved = await saveForm(form);
+        const saved = await saveForm(form, user.id);
         return NextResponse.json({
             status: true,
             message: "Form saved successfully",
