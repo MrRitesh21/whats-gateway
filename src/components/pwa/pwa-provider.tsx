@@ -81,15 +81,44 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
         window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
         window.addEventListener("appinstalled", handleAppInstalled);
 
+        // Prevent multi-touch pinch zoom gestures on mobile/PWA
+        const handleTouchMove = (e: TouchEvent) => {
+            if (e.touches.length > 1) {
+                e.preventDefault();
+            }
+        };
+
+        const handleGesture = (e: Event) => {
+            e.preventDefault();
+        };
+
+        // Prevent double-tap zoom on non-form elements
+        let lastTouchEnd = 0;
+        const handleTouchEnd = (e: TouchEvent) => {
+            const now = Date.now();
+            const target = e.target as HTMLElement | null;
+            const isFormField = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable);
+            if (!isFormField && now - lastTouchEnd <= 300) {
+                e.preventDefault();
+            }
+            lastTouchEnd = now;
+        };
+
+        document.addEventListener("touchmove", handleTouchMove, { passive: false });
+        document.addEventListener("gesturestart", handleGesture);
+        document.addEventListener("gesturechange", handleGesture);
+        document.addEventListener("gestureend", handleGesture);
+        document.addEventListener("touchend", handleTouchEnd, { passive: false });
+
         return () => {
             window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
             window.removeEventListener("appinstalled", handleAppInstalled);
-            document.removeEventListener('touchmove', handleTouchMove);
-            document.removeEventListener('gesturestart', handleGesture);
-            document.removeEventListener('gesturechange', handleGesture);
-            document.removeEventListener('gestureend', handleGesture);
-            document.removeEventListener('touchend', handleTouchEnd);
-            };
+            document.removeEventListener("touchmove", handleTouchMove);
+            document.removeEventListener("gesturestart", handleGesture);
+            document.removeEventListener("gesturechange", handleGesture);
+            document.removeEventListener("gestureend", handleGesture);
+            document.removeEventListener("touchend", handleTouchEnd);
+        };
     }, []);
 
     const installApp = async () => {
