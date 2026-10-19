@@ -34,6 +34,7 @@ import {
     BellDot,
     LogOut,
     Users,
+    FileText,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
@@ -66,6 +67,7 @@ const navGroups: NavGroup[] = [
         label: "Contacts & CRM",
         items: [
             { href: "/dashboard/crm", label: "CRM & Leads", icon: Users },
+            { href: "/dashboard/lead-forms", label: "Lead Forms & Outreach", icon: FileText },
             { href: "/dashboard/contacts", label: "Contacts", icon: BookUser },
             { href: "/dashboard/groups", label: "Groups", icon: Network },
             { href: "/dashboard/labels", label: "Labels", icon: Bookmark },
