@@ -291,7 +291,7 @@ export default function AutoBroadcastPage() {
                             <div className="mt-2 space-y-2">
                                 <Input
                                     type="file"
-                                    accept="image/jpeg,image/png,image/webp,video/mp4"
+                                    accept="image/*,video/mp4,video/*,.pdf,.doc,.docx"
                                     className="text-xs sm:text-sm file:text-xs file:mr-2"
                                     onChange={async (e) => {
                                         const file = e.target.files?.[0];
@@ -303,16 +303,16 @@ export default function AutoBroadcastPage() {
                                                 method: "POST",
                                                 body: formData
                                             });
-                                            const data = await res.json();
+                                            const data = await res.json().catch(() => ({ status: false, message: "Upload failed" }));
                                             if (data.status) {
                                                 setMediaUrl(data.data.url);
                                                 setMediaType(data.data.type);
-                                                toast.success("Image uploaded");
+                                                toast.success("Media uploaded successfully");
                                             } else {
-                                                toast.error(data.message);
+                                                toast.error(data.message || "Failed to upload file");
                                             }
-                                        } catch (_err) {
-                                            toast.error("Upload failed");
+                                        } catch (err: any) {
+                                            toast.error(err?.message || "Upload failed");
                                         }
                                     }}
                                 />

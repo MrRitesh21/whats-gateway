@@ -70,7 +70,7 @@ export default function JpmSwgcPage() {
         try {
             setUploading(true);
             const res = await fetch("/api/autobroadcast/upload", { method: "POST", body: formData });
-            const data = await res.json();
+            const data = await res.json().catch(() => ({ status: false, message: "Upload failed" }));
             if (data.status) {
                 setMediaUrl(data.data.url);
                 setMediaType(data.data.type === "video" ? "video" : "image");
@@ -78,8 +78,8 @@ export default function JpmSwgcPage() {
             } else {
                 toast.error(data.message || "Upload failed");
             }
-        } catch {
-            toast.error("Upload failed");
+        } catch (err: any) {
+            toast.error(err?.message || "Upload failed");
         } finally {
             setUploading(false);
         }

@@ -280,8 +280,22 @@ async function runCampaignWorker(campaign: ActiveCampaignState) {
                             const match = parts[0].match(/:(.*?);/);
                             if (match) mimeType = match[1];
                             mediaBuffer = Buffer.from(parts[1], "base64");
+                        } else if (campaign.mediaUrl.startsWith("/api/media/")) {
+                            const filename = decodeURIComponent(campaign.mediaUrl.replace("/api/media/", "").split("?")[0]);
+                            const diskPath = path.join(process.cwd(), "data", "media", filename);
+                            const fsPromises = await import("fs/promises");
+                            mediaBuffer = await fsPromises.readFile(diskPath);
+                            const ext = path.extname(filename).toLowerCase();
+                            if ([".jpg", ".jpeg"].includes(ext)) mimeType = "image/jpeg";
+                            else if (ext === ".png") mimeType = "image/png";
+                            else if (ext === ".webp") mimeType = "image/webp";
+                            else if (ext === ".mp4") mimeType = "video/mp4";
+                            else if (ext === ".pdf") mimeType = "application/pdf";
                         } else {
-                            const res = await fetch(campaign.mediaUrl);
+                            const targetUrl = campaign.mediaUrl.startsWith("http")
+                                ? campaign.mediaUrl
+                                : `${process.env.BASE_URL || "http://localhost:3030"}${campaign.mediaUrl}`;
+                            const res = await fetch(targetUrl);
                             if (!res.ok) throw new Error(`HTTP ${res.status} downloading media`);
                             const ct = res.headers.get("content-type");
                             if (ct) mimeType = ct;
