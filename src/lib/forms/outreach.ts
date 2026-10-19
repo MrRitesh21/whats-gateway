@@ -204,12 +204,13 @@ RULES:
  * Records initial submission immediately and kicks off CRM + AI outreach in the background.
  * Guarantees HTTP submission endpoint responds in < 100ms!
  */
-export function triggerFastSubmission(
-    form: LeadForm,
-    submissionData: Record<string, string>,
-    ip: string,
-    submissionId?: string
-): { leadId: string; fastPromise: Promise<any> } {
+export function triggerFastSubmission(params: {
+    form: LeadForm;
+    submissionData: Record<string, string>;
+    ip?: string;
+    userAgent?: string;
+}): { leadId: string; fastPromise: Promise<any> } {
+    const { form, submissionData, ip, userAgent } = params;
     const phoneRaw = submissionData.phone || submissionData.whatsapp || submissionData.mobile || "";
     const cleanDigits = phoneRaw.replace(/[^0-9]/g, "");
     const formattedPhone = cleanDigits ? normalizePhoneNumber(cleanDigits) : "";
@@ -218,7 +219,7 @@ export function triggerFastSubmission(
     // Launch async background pipeline
     const fastPromise = (async () => {
         try {
-            await handleFormSubmission(form, submissionData, ip);
+            await handleFormSubmission({ form, submissionData, ip, userAgent });
         } catch (err: any) {
             logger.error("Forms", "Fast background submission error:", err);
         }

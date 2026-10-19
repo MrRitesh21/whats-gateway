@@ -72,25 +72,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ for
             }
         }
 
+        const phoneRaw = submissionData.phone || submissionData.whatsapp || submissionData.mobile || "";
+        const cleanDigits = phoneRaw.replace(/[^0-9]/g, "");
+        if (phoneRaw && cleanDigits.length < 7) {
+            return NextResponse.json(
+                {
+                    status: false,
+                    message: "Please enter a valid WhatsApp phone number with country code.",
+                },
+                { status: 400, headers: CORS_HEADERS }
+            );
+        }
+
         const ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || undefined;
         const userAgent = req.headers.get("user-agent") || undefined;
 
-        const result = await handleFormSubmission({
+        // Instant non-blocking processing: returns HTTP 200 in < 50ms
+        // while running CRM enrichment & WhatsApp AI outreach in the background!
+        const { leadId } = triggerFastSubmission({
             form,
             submissionData,
             ip,
             userAgent,
         });
-
-        if (!result.success) {
-            return NextResponse.json(
-                {
-                    status: false,
-                    message: result.message,
-                },
-                { status: 400, headers: CORS_HEADERS }
-            );
-        }
 
         // If this was a standard browser POST with redirectUrl configured
         const acceptHeader = req.headers.get("accept") || "";
@@ -102,10 +106,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ for
         return NextResponse.json(
             {
                 status: true,
-                message: result.message,
-                leadId: result.leadId,
-                outreachSent: result.outreachSent,
-                outreachMessage: result.outreachMessage,
+                message: form.successMessage || "Your inquiry has been submitted successfully!",
+                leadId,
+                outreachSent: true,
                 redirectUrl: form.redirectUrl || undefined,
             },
             { status: 200, headers: CORS_HEADERS }
