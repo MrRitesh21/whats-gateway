@@ -80,7 +80,7 @@ const DEFAULT_FORMS_DATA: FormsStoreData = {
 
 let inMemoryCache: FormsStoreData | null = null;
 let lastReadTime = 0;
-const CACHE_TTL = 3000;
+const CACHE_TTL = 30000; // 30s cache for lightning fast public form rendering without DB roundtrips
 
 export async function getFormsData(): Promise<FormsStoreData> {
     const now = Date.now();

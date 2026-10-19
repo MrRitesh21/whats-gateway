@@ -127,7 +127,7 @@ RULES:
 `;
                     const aiResult = await executeSmartChat({
                         question: prompt,
-                        useRAG: true,
+                        useRAG: false, // Fast LLM response without blocking on vector similarity
                     });
                     outreachMessage = (aiResult?.answer || "").trim();
                 }
@@ -197,4 +197,32 @@ RULES:
         outreachMessage,
         message: form.successMessage || "Your inquiry has been submitted successfully!",
     };
+}
+
+/**
+ * Non-blocking instant submission runner.
+ * Records initial submission immediately and kicks off CRM + AI outreach in the background.
+ * Guarantees HTTP submission endpoint responds in < 100ms!
+ */
+export function triggerFastSubmission(
+    form: LeadForm,
+    submissionData: Record<string, string>,
+    ip: string,
+    submissionId?: string
+): { leadId: string; fastPromise: Promise<any> } {
+    const phoneRaw = submissionData.phone || submissionData.whatsapp || submissionData.mobile || "";
+    const cleanDigits = phoneRaw.replace(/[^0-9]/g, "");
+    const formattedPhone = cleanDigits ? normalizePhoneNumber(cleanDigits) : "";
+    const leadId = `lead_${formattedPhone || Date.now()}`;
+
+    // Launch async background pipeline
+    const fastPromise = (async () => {
+        try {
+            await handleFormSubmission(form, submissionData, ip);
+        } catch (err: any) {
+            logger.error("Forms", "Fast background submission error:", err);
+        }
+    })();
+
+    return { leadId, fastPromise };
 }

@@ -11,12 +11,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ form
             return NextResponse.json({ status: false, message: "Form not found" }, { status: 404 });
         }
 
-        // Check auth to decide if submissions should be returned
-        const user = await getAuthenticatedUser(req);
+        // Fast path for public visitor: if no auth cookie/header present, skip auth check entirely
+        const authHeader = req.headers.get("authorization");
+        const hasAuthCookie = req.cookies.has("auth_token") || req.cookies.has("session") || req.cookies.has("token");
+
         let submissions: any[] = [];
-        if (user) {
-            const allData = await getFormsData();
-            submissions = allData.submissions.filter((s) => s.formId === formId);
+        if (authHeader || hasAuthCookie) {
+            const user = await getAuthenticatedUser(req).catch(() => null);
+            if (user) {
+                const allData = await getFormsData();
+                submissions = allData.submissions.filter((s) => s.formId === formId);
+            }
         }
 
         return NextResponse.json({

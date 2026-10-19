@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getFormById } from "@/lib/forms/storage";
-import { handleFormSubmission } from "@/lib/forms/outreach";
+import { handleFormSubmission, triggerFastSubmission } from "@/lib/forms/outreach";
 
 // CORS Headers so client websites can embed the form via JavaScript fetch/AJAX
 const CORS_HEADERS = {
