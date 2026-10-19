@@ -84,7 +84,12 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
         return () => {
             window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
             window.removeEventListener("appinstalled", handleAppInstalled);
-        };
+            document.removeEventListener('touchmove', handleTouchMove);
+            document.removeEventListener('gesturestart', handleGesture);
+            document.removeEventListener('gesturechange', handleGesture);
+            document.removeEventListener('gestureend', handleGesture);
+            document.removeEventListener('touchend', handleTouchEnd);
+            };
     }, []);
 
     const installApp = async () => {
