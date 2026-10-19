@@ -22,21 +22,43 @@ export async function GET(request: NextRequest) {
         );
     }
 
-    // Always return SUPERADMIN-like privileges to unlock all features
+    if (user.role === "SUPERADMIN") {
+        return NextResponse.json({
+            status: true,
+            data: {
+                plan: "SUPERADMIN",
+                planName: "Superadmin (All Features Unlocked)",
+                planExpiresAt: null,
+                dayCount: 0,
+                monthCount: 0,
+                dailyLimit: -1,
+                monthlyLimit: -1,
+                dailyRemaining: -1,
+                monthlyRemaining: -1,
+                unlimited: true,
+                capabilities: allCapsTrue(),
+            },
+        });
+    }
+
+    const plan = effectivePlan(user as any);
+    const planCfg = await getMergedPlan(plan);
+    const usage = await getUsage(user.id, plan);
+
     return NextResponse.json({
         status: true,
         data: {
-            plan: "ENTERPRISE",
-            planName: "Enterprise (All Features Unlocked)",
-            planExpiresAt: null,
-            dayCount: 0,
-            monthCount: 0,
-            dailyLimit: -1,
-            monthlyLimit: -1,
-            dailyRemaining: -1,
-            monthlyRemaining: -1,
-            unlimited: true,
-            capabilities: allCapsTrue()
-        }
+            plan: planCfg.id,
+            planName: planCfg.name,
+            planExpiresAt: user.planExpiresAt ?? null,
+            dayCount: usage.dayCount,
+            monthCount: usage.monthCount,
+            dailyLimit: planCfg.dailyLimit,
+            monthlyLimit: planCfg.monthlyLimit,
+            dailyRemaining: usage.dailyRemaining,
+            monthlyRemaining: usage.monthlyRemaining,
+            unlimited: planCfg.monthlyLimit < 0,
+            capabilities: planCfg.capabilities ?? allCapsTrue(),
+        },
     });
 }

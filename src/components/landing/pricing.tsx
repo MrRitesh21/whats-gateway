@@ -21,7 +21,7 @@ export async function PricingCards({ ctaHref = "/dashboard/billing" }: { ctaHref
                     const isCustom = plan.price === null;
 
                     // Benefit = fitur aktif (dari toggle) + benefit teks tambahan.
-                    const capBenefits = CAPABILITIES.filter((c) => plan.capabilities?.[c.id]).map((c) => c.label);
+                    const capBenefits = CAPABILITIES.filter((c) => plan.capabilities?.[c.id] !== false).map((c) => c.label);
                     const benefits = [...capBenefits, ...(plan.features || [])];
 
                 return (

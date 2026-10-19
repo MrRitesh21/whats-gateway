@@ -57,8 +57,8 @@ const navGroups: NavGroup[] = [
     {
         label: "Messaging",
         items: [
-            { href: "/dashboard/chat", label: "Chat", icon: Inbox },
-            { href: "/dashboard/bulk-messenger", label: "Bulk Messenger", icon: Zap, capability: "broadcast" },
+            { href: "/dashboard/chat", label: "Chat", icon: Inbox, capability: "chat" },
+            { href: "/dashboard/bulk-messenger", label: "Bulk Messenger", icon: Zap, capability: "bulkMessenger" },
             { href: "/dashboard/broadcast", label: "Broadcast", icon: Zap, capability: "broadcast" },
             { href: "/dashboard/sticker", label: "Sticker Maker", icon: Sparkles, capability: "sticker" },
         ],
@@ -66,20 +66,20 @@ const navGroups: NavGroup[] = [
     {
         label: "Contacts & CRM",
         items: [
-            { href: "/dashboard/crm", label: "CRM & Leads", icon: Users },
-            { href: "/dashboard/lead-forms", label: "Lead Forms & Outreach", icon: FileText },
-            { href: "/dashboard/contacts", label: "Contacts", icon: BookUser },
-            { href: "/dashboard/groups", label: "Groups", icon: Network },
-            { href: "/dashboard/labels", label: "Labels", icon: Bookmark },
+            { href: "/dashboard/crm", label: "CRM & Leads", icon: Users, capability: "crm" },
+            { href: "/dashboard/lead-forms", label: "Lead Forms & Outreach", icon: FileText, capability: "leadForms" },
+            { href: "/dashboard/contacts", label: "Contacts", icon: BookUser, capability: "contacts" },
+            { href: "/dashboard/groups", label: "Groups", icon: Network, capability: "groups" },
+            { href: "/dashboard/labels", label: "Labels", icon: Bookmark, capability: "labels" },
         ],
     },
     {
         label: "Automation",
         items: [
-            { href: "/dashboard/ai-gateway", label: "Smart AI & RAG", icon: Sparkles },
-            { href: "/dashboard/bot-settings", label: "Bot Settings", icon: Cpu },
+            { href: "/dashboard/ai-gateway", label: "Smart AI & RAG", icon: Sparkles, capability: "smartAi" },
+            { href: "/dashboard/bot-settings", label: "Bot Settings", icon: Cpu, capability: "botSettings" },
             { href: "/dashboard/autoreply", label: "Auto Reply", icon: BotMessageSquare, capability: "autoReply" },
-            { href: "/dashboard/profile", label: "Bot Profile", icon: BadgeCheck },
+            { href: "/dashboard/profile", label: "Bot Profile", icon: BadgeCheck, capability: "botProfile" },
             { href: "/dashboard/scheduler", label: "Scheduler", icon: Timer, capability: "scheduler" },
             { href: "/dashboard/auto-broadcast", label: "Auto Broadcast", icon: Radar, capability: "autoBroadcast" },
             { href: "/dashboard/jpm-swgc", label: "JPM SWGC", icon: GitFork, capability: "jpm" },
@@ -89,9 +89,9 @@ const navGroups: NavGroup[] = [
     {
         label: "Developer",
         items: [
-            { href: "/dashboard/mcp", label: "MCP & Claude AI", icon: Sparkles },
-            { href: "/docs", label: "API Docs", icon: BookOpen },
-            { href: "/swagger", label: "Swagger UI", icon: Braces, external: true },
+            { href: "/dashboard/mcp", label: "MCP & Claude AI", icon: Sparkles, capability: "mcp" },
+            { href: "/docs", label: "API Docs", icon: BookOpen, capability: "apiDocs" },
+            { href: "/swagger", label: "Swagger UI", icon: Braces, external: true, capability: "apiDocs" },
         ],
     },
     {
@@ -103,7 +103,7 @@ const navGroups: NavGroup[] = [
     {
         label: "Administration",
         items: [
-            { href: "/dashboard/media", label: "Media Manager", icon: FolderArchive },
+            { href: "/dashboard/media", label: "Media Manager", icon: FolderArchive, capability: "mediaManager" },
             { href: "/dashboard/sessions/access", label: "Session Access", icon: Key },
             { href: "/dashboard/users", label: "Users", icon: ShieldCheck, superadminOnly: true },
             { href: "/dashboard/settings", label: "Settings", icon: SlidersHorizontal },

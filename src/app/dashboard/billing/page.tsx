@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { PLANS, PLAN_ORDER, formatIDR, type PlanId } from "@/lib/plans";
+import { PLANS, PLAN_ORDER, formatIDR, CAPABILITIES, type PlanId, type PlanConfig } from "@/lib/plans";
 
 interface UsageData {
     plan: PlanId;
@@ -66,6 +66,20 @@ export default function BillingPage() {
     const [polling, setPolling] = useState(false);
     const [utrInput, setUtrInput] = useState("");
     const [submittingUtr, setSubmittingUtr] = useState(false);
+    const [dynamicPlans, setDynamicPlans] = useState<Record<string, PlanConfig>>({});
+
+    useEffect(() => {
+        fetch("/api/billing/plans")
+            .then((r) => (r.ok ? r.json() : null))
+            .then((d) => {
+                if (d?.data) {
+                    const map: Record<string, PlanConfig> = {};
+                    for (const p of d.data) map[p.id] = p;
+                    setDynamicPlans(map);
+                }
+            })
+            .catch(() => {});
+    }, []);
 
     const loadUsage = useCallback(async () => {
         try {
@@ -334,10 +348,12 @@ export default function BillingPage() {
                 <h2 className="text-lg font-semibold mb-4">Choose a Plan</h2>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     {PLAN_ORDER.map((id) => {
-                        const plan = PLANS[id];
+                        const plan = dynamicPlans[id] || PLANS[id];
                         const isCurrent = usage?.plan === id;
                         const isFree = plan.price === 0;
                         const isCustom = plan.price === null;
+                        const capBenefits = CAPABILITIES.filter((c) => plan.capabilities?.[c.id] !== false).map((c) => c.label);
+                        const allBenefits = [...capBenefits, ...(plan.features || [])];
                         return (
                             <div
                                 key={id}
@@ -356,8 +372,8 @@ export default function BillingPage() {
                                     )}
                                 </div>
                                 <ul className="space-y-2 mb-5 flex-1">
-                                    {plan.features.map((f) => (
-                                        <li key={f} className="flex items-start gap-2 text-xs text-foreground/80">
+                                    {allBenefits.map((f, i) => (
+                                        <li key={`${f}-${i}`} className="flex items-start gap-2 text-xs text-foreground/80">
                                             <Check className="h-4 w-4 text-primary shrink-0" />
                                             <span>{f}</span>
                                         </li>
