@@ -1,12 +1,12 @@
 {
-  "name": "WAFlow-whatsapp",
+  "name": "waflow-whatsapp",
   "description": "WhatsApp Management Gateway & Automation by WAFlow WhatsApp",
   "version": "1.5.6",
   "private": false,
   "scripts": {
     "dev": "NODE_OPTIONS='--max-old-space-size=4096' npx tsx src/server/bootstrap.ts",
     "build": "node scripts/prebuild-check.js && prisma generate && next build",
-    "start": "NODE_OPTIONS='--max-old-space-size=4096' npx tsx src/server/bootstrap.ts",
+    "start": "npx tsx src/server/bootstrap.ts",
     "lint": "eslint",
     "db:push": "prisma db push && prisma generate",
     "db:studio": "prisma studio",

@@ -153,7 +153,7 @@ app.prepare().then(() => {
       if (typeof (global as any).gc === "function") {
         try { (global as any).gc(); } catch { /* ignore */ }
       }
-    }, 5 * 60 * 1000);
+    }, 2 * 60 * 1000);
   });
 
   // --- Graceful Shutdown ---

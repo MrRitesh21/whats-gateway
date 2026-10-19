@@ -2,7 +2,11 @@ import type { NextConfig } from "next";
 import path from "path";
 
 const nextConfig: NextConfig = {
+  productionBrowserSourceMaps: false,
   experimental: {
+    turbopackSourceMaps: false,
+    turbopackInputSourceMaps: false,
+    serverSourceMaps: false,
     serverActions: {
       bodySizeLimit: "50mb",
     },
