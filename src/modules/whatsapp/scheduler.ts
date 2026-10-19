@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { waManager } from "./manager";
 import { logger } from "@/lib/logger";
 import { userPlanAllows } from "@/lib/plans-store";
+import path from "path";
+import fs from "fs";
 
 const checkScheduledMessages = async () => {
     try {
@@ -38,17 +40,37 @@ const checkScheduledMessages = async () => {
                     if (msg.mediaUrl) {
                         const url = msg.mediaUrl;
                         const type = msg.mediaType || 'image'; // Default to image if null
+                        let mediaSource: any;
+                        let mimeType = 'application/octet-stream';
+                        let fileName = 'attachment';
 
-                        const res = await fetch(url);
-                        if (!res.ok) throw new Error(`Failed to fetch media from URL: ${res.status} ${res.statusText}`);
-                        const buffer = Buffer.from(await res.arrayBuffer());
+                        if (url.startsWith('/api/media/')) {
+                            const diskFilename = decodeURIComponent(url.replace('/api/media/', '').split('?')[0]);
+                            const diskPath = path.join(process.cwd(), 'data', 'media', diskFilename);
+                            fileName = diskFilename;
+                            const ext = path.extname(diskFilename).toLowerCase();
+                            if (['.jpg', '.jpeg'].includes(ext)) mimeType = 'image/jpeg';
+                            else if (ext === '.png') mimeType = 'image/png';
+                            else if (ext === '.webp') mimeType = 'image/webp';
+                            else if (ext === '.mp4') mimeType = 'video/mp4';
+                            else if (ext === '.pdf') mimeType = 'application/pdf';
+
+                            if (fs.existsSync(diskPath)) {
+                                mediaSource = { url: diskPath };
+                            } else {
+                                mediaSource = { url };
+                            }
+                        } else {
+                            mediaSource = { url };
+                            fileName = url.split('/').pop()?.split('?')[0] || 'attachment';
+                        }
 
                         if (type === 'video') {
-                            content = { video: buffer, caption: msg.content };
+                            content = { video: mediaSource, caption: msg.content, mimetype: mimeType === 'application/octet-stream' ? 'video/mp4' : mimeType };
                         } else if (type === 'document') {
-                            content = { document: buffer, caption: msg.content, fileName: url.split('/').pop() || 'file', mimetype: 'application/octet-stream' };
+                            content = { document: mediaSource, caption: msg.content, fileName, mimetype: mimeType };
                         } else {
-                            content = { image: buffer, caption: msg.content };
+                            content = { image: mediaSource, caption: msg.content, mimetype: mimeType === 'application/octet-stream' ? 'image/jpeg' : mimeType };
                         }
                     } else {
                         content = { text: msg.content };

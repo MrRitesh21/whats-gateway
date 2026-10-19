@@ -158,7 +158,8 @@ async function sendBroadcast(broadcast: any) {
                         }
 
                         if (fs.existsSync(filePath)) {
-                            mediaSource = fs.readFileSync(filePath);
+                            // Stream directly from disk via Baileys url instead of allocating buffer in RAM
+                            mediaSource = { url: filePath };
                         } else {
                             logger.warn("AutoBroadcast", `Media hilang di disk (${filename}) — kemungkinan filesystem ephemeral (Railway tanpa volume). Kirim teks saja. Pasang volume persisten di /app/data untuk memperbaiki.`);
                             // Skip media — send as text only

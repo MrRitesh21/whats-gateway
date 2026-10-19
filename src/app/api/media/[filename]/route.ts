@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readFile } from "fs/promises";
+import { readFile, stat } from "fs/promises";
 import path from "path";
-import { existsSync } from "fs";
+import { existsSync, createReadStream } from "fs";
+import { Readable } from "stream";
 import { getAuthenticatedUser, canAccessSession } from "@/lib/api-auth";
 
 // Media directory — private, NOT in public/
@@ -91,7 +92,7 @@ export async function GET(
             );
         }
 
-        const fileBuffer = await readFile(filePath);
+        const fileStat = await stat(filePath);
 
         // Determine content type based on extension
         const ext = path.extname(filename).toLowerCase();
@@ -113,10 +114,15 @@ export async function GET(
 
         const contentType = contentTypeMap[ext] || 'application/octet-stream';
 
-        return new NextResponse(fileBuffer, {
+        // Stream file without loading entire 25MB+ video into Node heap (Render 512MB RAM optimization)
+        const nodeStream = createReadStream(filePath);
+        const webStream = Readable.toWeb(nodeStream);
+
+        return new Response(webStream as any, {
             status: 200,
             headers: {
                 'Content-Type': contentType,
+                'Content-Length': fileStat.size.toString(),
                 'Content-Disposition': `inline; filename="${filename}"`,
                 'Cache-Control': 'private, max-age=3600',
                 'X-Content-Type-Options': 'nosniff',

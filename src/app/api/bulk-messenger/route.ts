@@ -1,4 +1,5 @@
 import { NextResponse, NextRequest } from "next/server";
+import path from "path";
 import { waManager } from "@/modules/whatsapp/manager";
 import { canAccessSession, getAuthenticatedUser } from "@/lib/api-auth";
 import { antiban } from "@/modules/whatsapp/antiban";
@@ -146,6 +147,57 @@ async function runCampaignWorker(campaign: ActiveCampaignState) {
     let sessionIndex = 0;
     let msgsSinceRotate = 0;
 
+    // Pre-resolve media descriptor ONCE to prevent memory bloat and redundant disk reads/fetches on Render
+    let preloadedMediaPayload: { url: string } | Buffer | null = null;
+    let preloadedMimeType = "application/octet-stream";
+    let preloadedMediaType: "image" | "video" | "document" = "document";
+    let preloadedFileName = campaign.fileName;
+
+    if (campaign.mediaUrl) {
+        try {
+            if (campaign.mediaUrl.startsWith("data:")) {
+                const parts = campaign.mediaUrl.split(",");
+                const match = parts[0].match(/:(.*?);/);
+                if (match) preloadedMimeType = match[1];
+                preloadedMediaPayload = Buffer.from(parts[1], "base64");
+            } else if (campaign.mediaUrl.startsWith("/api/media/")) {
+                const filename = decodeURIComponent(campaign.mediaUrl.replace("/api/media/", "").split("?")[0]);
+                const diskPath = path.join(process.cwd(), "data", "media", filename);
+                const ext = path.extname(filename).toLowerCase();
+                if ([".jpg", ".jpeg"].includes(ext)) preloadedMimeType = "image/jpeg";
+                else if (ext === ".png") preloadedMimeType = "image/png";
+                else if (ext === ".webp") preloadedMimeType = "image/webp";
+                else if (ext === ".mp4") preloadedMimeType = "video/mp4";
+                else if (ext === ".pdf") preloadedMimeType = "application/pdf";
+
+                const fsSync = await import("fs");
+                if (fsSync.existsSync(diskPath)) {
+                    // Pass { url: diskPath } to Baileys for direct disk streaming with zero RAM spikes
+                    preloadedMediaPayload = { url: diskPath };
+                } else {
+                    const fsPromises = await import("fs/promises");
+                    preloadedMediaPayload = await fsPromises.readFile(diskPath);
+                }
+                if (!preloadedFileName) {
+                    preloadedFileName = filename;
+                }
+            } else {
+                const targetUrl = campaign.mediaUrl.startsWith("http")
+                    ? campaign.mediaUrl
+                    : `${process.env.BASE_URL || "http://localhost:3030"}${campaign.mediaUrl}`;
+                const res = await fetch(targetUrl);
+                if (!res.ok) throw new Error(`HTTP ${res.status} downloading media`);
+                const ct = res.headers.get("content-type");
+                if (ct) preloadedMimeType = ct;
+                preloadedMediaPayload = Buffer.from(await res.arrayBuffer());
+            }
+
+            preloadedMediaType = campaign.mediaType || (preloadedMimeType.startsWith("video") ? "video" : preloadedMimeType.startsWith("image") ? "image" : "document");
+        } catch (mediaPrepErr) {
+            console.error("Failed to pre-resolve campaign media attachment:", mediaPrepErr);
+        }
+    }
+
     for (let i = 0; i < campaign.recipients.length; i++) {
         if (campaign.isStopped || campaign.isPaused) break;
 
@@ -270,55 +322,18 @@ async function runCampaignWorker(campaign: ActiveCampaignState) {
                 
                 let content: any = { text: interpolatedText };
 
-                if (campaign.mediaUrl) {
-                    try {
-                        let mediaBuffer: Buffer;
-                        let mimeType = "application/octet-stream";
-
-                        if (campaign.mediaUrl.startsWith("data:")) {
-                            const parts = campaign.mediaUrl.split(",");
-                            const match = parts[0].match(/:(.*?);/);
-                            if (match) mimeType = match[1];
-                            mediaBuffer = Buffer.from(parts[1], "base64");
-                        } else if (campaign.mediaUrl.startsWith("/api/media/")) {
-                            const filename = decodeURIComponent(campaign.mediaUrl.replace("/api/media/", "").split("?")[0]);
-                            const diskPath = path.join(process.cwd(), "data", "media", filename);
-                            const fsPromises = await import("fs/promises");
-                            mediaBuffer = await fsPromises.readFile(diskPath);
-                            const ext = path.extname(filename).toLowerCase();
-                            if ([".jpg", ".jpeg"].includes(ext)) mimeType = "image/jpeg";
-                            else if (ext === ".png") mimeType = "image/png";
-                            else if (ext === ".webp") mimeType = "image/webp";
-                            else if (ext === ".mp4") mimeType = "video/mp4";
-                            else if (ext === ".pdf") mimeType = "application/pdf";
-                        } else {
-                            const targetUrl = campaign.mediaUrl.startsWith("http")
-                                ? campaign.mediaUrl
-                                : `${process.env.BASE_URL || "http://localhost:3030"}${campaign.mediaUrl}`;
-                            const res = await fetch(targetUrl);
-                            if (!res.ok) throw new Error(`HTTP ${res.status} downloading media`);
-                            const ct = res.headers.get("content-type");
-                            if (ct) mimeType = ct;
-                            mediaBuffer = Buffer.from(await res.arrayBuffer());
-                        }
-
-                        const type = campaign.mediaType || (mimeType.startsWith("video") ? "video" : mimeType.startsWith("image") ? "image" : "document");
-
-                        if (type === "video") {
-                            content = { video: mediaBuffer, caption: interpolatedText };
-                        } else if (type === "document") {
-                            content = {
-                                document: mediaBuffer,
-                                caption: interpolatedText,
-                                mimetype: mimeType,
-                                fileName: campaign.fileName || campaign.mediaUrl.split("/").pop()?.split("?")[0] || "attachment.pdf"
-                            };
-                        } else {
-                            content = { image: mediaBuffer, caption: interpolatedText };
-                        }
-                    } catch (mediaErr: any) {
-                        console.error("Failed to prepare media attachment, falling back to text:", mediaErr);
-                        content = { text: interpolatedText };
+                if (preloadedMediaPayload) {
+                    if (preloadedMediaType === "video") {
+                        content = { video: preloadedMediaPayload, caption: interpolatedText, mimetype: preloadedMimeType };
+                    } else if (preloadedMediaType === "document") {
+                        content = {
+                            document: preloadedMediaPayload,
+                            caption: interpolatedText,
+                            mimetype: preloadedMimeType,
+                            fileName: preloadedFileName || "attachment.pdf"
+                        };
+                    } else {
+                        content = { image: preloadedMediaPayload, caption: interpolatedText, mimetype: preloadedMimeType };
                     }
                 }
 

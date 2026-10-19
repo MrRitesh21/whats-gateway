@@ -99,8 +99,8 @@ export async function POST(
         let innerContent: any;
 
         if (mediaType === "image" || mediaType === "video") {
-            // Resolve media buffer
-            let buffer: Buffer;
+            // Resolve media source
+            let mediaSource: any;
             try {
                 if (mediaUrl.startsWith("/api/media/")) {
                     const filename = mediaUrl.replace("/api/media/", "");
@@ -111,20 +111,20 @@ export async function POST(
                     if (!fs.existsSync(filePath)) {
                         return NextResponse.json({ status: false, message: "Media file not found" }, { status: 404 });
                     }
-                    buffer = fs.readFileSync(filePath);
+                    mediaSource = { url: filePath };
                 } else {
                     // External URL
                     const res = await fetch(mediaUrl);
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                    buffer = Buffer.from(await res.arrayBuffer());
+                    mediaSource = Buffer.from(await res.arrayBuffer());
                 }
             } catch (e: any) {
                 return NextResponse.json({ status: false, message: `Failed to load media: ${e?.message || "unknown"}` }, { status: 400 });
             }
 
             const payload: any = mediaType === "video"
-                ? { video: buffer, caption: text }
-                : { image: buffer, caption: text };
+                ? { video: mediaSource, caption: text }
+                : { image: mediaSource, caption: text };
 
             innerContent = await generateWAMessageContent(payload, {
                 upload: (sock as any).waUploadToServer,

@@ -7,8 +7,9 @@ const nextConfig: NextConfig = {
     turbopackSourceMaps: false,
     turbopackInputSourceMaps: false,
     serverSourceMaps: false,
+    proxyClientMaxBodySize: "100mb",
     serverActions: {
-      bodySizeLimit: "50mb",
+      bodySizeLimit: "100mb",
     },
   },
   serverExternalPackages: ["sharp", "bcryptjs"],

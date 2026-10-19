@@ -87,10 +87,23 @@ export default function BulkMessengerPage() {
         const file = e.target.files?.[0];
         if (!file) return;
 
+        // Render / Server limit check (up to 50MB)
+        const MAX_SIZE = 50 * 1024 * 1024;
+        if (file.size > MAX_SIZE) {
+            toast.error(`File size (${(file.size / (1024 * 1024)).toFixed(1)}MB) exceeds 50MB limit.`);
+            if (e.target) e.target.value = "";
+            return;
+        }
+
         let detectedType: "image" | "video" | "document" = "image";
-        if (file.type.startsWith("video/")) detectedType = "video";
-        else if (file.type.startsWith("image/")) detectedType = "image";
-        else detectedType = "document";
+        const ext = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
+        if (file.type.startsWith("video/") || [".mp4", ".mov", ".mkv", ".webm", ".3gp", ".avi"].includes(ext)) {
+            detectedType = "video";
+        } else if (file.type.startsWith("image/") || [".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg"].includes(ext)) {
+            detectedType = "image";
+        } else {
+            detectedType = "document";
+        }
 
         setMediaType(detectedType);
         setMediaFileName(file.name);
@@ -118,6 +131,7 @@ export default function BulkMessengerPage() {
             toast.error(err?.message || `Failed to upload "${file.name}"`);
         } finally {
             setUploadingMedia(false);
+            if (e.target) e.target.value = "";
         }
     };
 
@@ -1138,7 +1152,7 @@ export default function BulkMessengerPage() {
                                                     <input
                                                         type="file"
                                                         className="hidden"
-                                                        accept="image/*,video/mp4,.pdf,.doc,.docx"
+                                                        accept="image/*,video/*,.pdf,.doc,.docx,.mp4,.mov,.mkv,.webm,.3gp,.avi"
                                                         onChange={handleFileUpload}
                                                         disabled={uploadingMedia || loading}
                                                     />
