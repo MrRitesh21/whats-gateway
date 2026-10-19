@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Menu, LogOut, Download } from "lucide-react";
+import { Menu, Download } from "lucide-react";
 import { usePWAInstall } from "@/components/pwa/pwa-provider";
 import Link from "next/link";
 import {
@@ -114,6 +114,7 @@ export function MobileNav({ appName = "WAFlow WhatsApp" }: { appName?: string })
     const [open, setOpen] = useState(false);
     const pathname = usePathname();
     const { data: session } = useSession();
+    const { isInstalled, installApp } = usePWAInstall();
     // @ts-ignore
     const userRole = session?.user?.role;
 
@@ -206,9 +207,9 @@ export function MobileNav({ appName = "WAFlow WhatsApp" }: { appName?: string })
                     })}
                 </nav>
 
-                <div className="p-4 border-t border-slate-100 bg-slate-50/50">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-semibold text-slate-600">
+                <div className="p-4 border-t border-slate-100 bg-slate-50/50 space-y-3">
+                    <div className="flex items-center gap-3 px-1">
+                        <div className="h-8 w-8 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-xs font-bold">
                             {session?.user?.name?.charAt(0)?.toUpperCase() || "U"}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -216,6 +217,20 @@ export function MobileNav({ appName = "WAFlow WhatsApp" }: { appName?: string })
                             <p className="text-[11px] text-slate-400 truncate" translate="no">{session?.user?.email}</p>
                         </div>
                     </div>
+                    {!isInstalled && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full flex items-center justify-center gap-2 text-xs h-8 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+                            onClick={() => {
+                                setOpen(false);
+                                installApp();
+                            }}
+                        >
+                            <Download className="h-3.5 w-3.5 text-emerald-500" />
+                            Install App (1-Click)
+                        </Button>
+                    )}
                     <Button
                         variant="outline"
                         size="sm"
