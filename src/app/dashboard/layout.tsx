@@ -1,6 +1,7 @@
 import { validateSystemLicense } from "@/lib/license/integrity";
 import { auth } from "@/lib/auth";
 import { Navbar } from "@/components/dashboard/navbar";
+import { BottomNav } from "@/components/dashboard/bottom-nav";
 import { SessionProvider } from "@/components/dashboard/session-provider";
 import { SidebarProvider } from "@/components/dashboard/sidebar-context";
 import { SidebarShell } from "@/components/dashboard/sidebar-shell";
@@ -73,9 +74,10 @@ export default async function DashboardLayout({
                     {/* Main Content */}
                     <div className="flex-1 flex flex-col overflow-hidden min-w-0 relative z-10">
                         <Navbar appName={appName} />
-                        <main className="flex-1 overflow-auto p-3 sm:p-4 lg:p-6 styled-scrollbar smooth-touch-scroll pb-safe">
+                        <main className="flex-1 overflow-auto p-3 sm:p-4 lg:p-6 styled-scrollbar smooth-touch-scroll pb-24 md:pb-6">
                             {children}
                         </main>
+                        <BottomNav />
                     </div>
                     <Toaster />
                 </div>

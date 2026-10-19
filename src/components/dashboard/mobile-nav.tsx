@@ -5,6 +5,7 @@ import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescri
 import { Button } from "@/components/ui/button";
 import { Menu, Download } from "lucide-react";
 import { usePWAInstall } from "@/components/pwa/pwa-provider";
+import { useSidebar } from "./sidebar-context";
 import Link from "next/link";
 import {
     Gauge,
@@ -111,7 +112,7 @@ const navGroups: NavGroup[] = [
 ];
 
 export function MobileNav({ appName = "WAFlow WhatsApp" }: { appName?: string }) {
-    const [open, setOpen] = useState(false);
+    const { isMobileNavOpen, setMobileNavOpen } = useSidebar();
     const pathname = usePathname();
     const { data: session } = useSession();
     const { isInstalled, installApp } = usePWAInstall();
@@ -138,7 +139,7 @@ export function MobileNav({ appName = "WAFlow WhatsApp" }: { appName?: string })
     };
 
     return (
-        <Sheet open={open} onOpenChange={setOpen}>
+        <Sheet open={isMobileNavOpen} onOpenChange={setMobileNavOpen}>
             <SheetTrigger asChild>
                 <Button variant="ghost" size="icon" className="md:hidden">
                     <Menu className="h-5 w-5" />
@@ -172,7 +173,7 @@ export function MobileNav({ appName = "WAFlow WhatsApp" }: { appName?: string })
                                             key={href}
                                             href={href}
                                             target={external ? "_blank" : undefined}
-                                            onClick={() => setOpen(false)}
+                                            onClick={() => setMobileNavOpen(false)}
                                             className={`
                                                 flex items-center rounded-lg text-sm font-medium
                                                 transition-all duration-200 group relative
@@ -223,7 +224,7 @@ export function MobileNav({ appName = "WAFlow WhatsApp" }: { appName?: string })
                             size="sm"
                             className="w-full flex items-center justify-center gap-2 text-xs h-8 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
                             onClick={() => {
-                                setOpen(false);
+                                setMobileNavOpen(false);
                                 installApp();
                             }}
                         >
@@ -236,7 +237,7 @@ export function MobileNav({ appName = "WAFlow WhatsApp" }: { appName?: string })
                         size="sm"
                         className="w-full flex items-center justify-center gap-2 text-xs h-8"
                         onClick={async () => {
-                            setOpen(false);
+                            setMobileNavOpen(false);
                             try {
                                 await signOut({ redirect: false });
                             } catch { }
