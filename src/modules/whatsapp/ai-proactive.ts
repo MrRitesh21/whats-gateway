@@ -13,8 +13,15 @@ const contactedWithin24h = new Map<string, number>();
 export async function runAIProactiveFollowupCheck(): Promise<void> {
     try {
         const { getAIGatewayData } = await import("@/lib/ai-gateway/storage");
-        const aiData = await getAIGatewayData();
-        const ragCfg = aiData.ragConfig;
+        // Find the owner of this session to ensure user isolation
+        const sessionRecord = await prisma.session.findUnique({
+            where: { sessionId },
+            select: { userId: true },
+        }).catch(() => null);
+        const sessionUserId = sessionRecord?.userId || undefined;
+
+        const aiData = await getAIGatewayData(sessionUserId);
+        const ragConfig = aiData.ragConfig;
 
         // Only run if AI auto-reply is globally configured and at least one AI account is active
         if (!ragCfg.enableWhatsAppAutoReply) return;

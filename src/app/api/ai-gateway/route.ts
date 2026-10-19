@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ status: false, message: "Unauthorized" }, { status: 401 });
         }
 
-        const data = await getAIGatewayData();
+        const data = await getAIGatewayData(user.id);
 
         // Mask API keys for security in UI responses
         const safeAccounts = data.accounts.map((acc) => ({
@@ -59,12 +59,12 @@ export async function POST(request: NextRequest) {
         const { action = "save_account" } = body;
 
         if (action === "update_gateway_config") {
-            const updated = await updateGatewayConfig(body.config || {});
+            const updated = await updateGatewayConfig(body.config || {}, user.id);
             return NextResponse.json({ status: true, message: "Gateway settings updated", data: updated });
         }
 
         if (action === "update_rag_config") {
-            const updated = await updateRAGConfig(body.config || {});
+            const updated = await updateRAGConfig(body.config || {}, user.id);
             return NextResponse.json({ status: true, message: "RAG settings updated", data: updated });
         }
 
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ status: false, message: "Account name and provider are required" }, { status: 400 });
             }
 
-            const currentData = await getAIGatewayData();
+            const currentData = await getAIGatewayData(user.id);
             const existing = currentData.accounts.find((a) => a.id === accData.id);
 
             // Handle API key: if user left it masked or blank during update, keep existing key
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
                 },
             };
 
-            await saveAccount(accountToSave);
+            await saveAccount(accountToSave, user.id);
             return NextResponse.json({
                 status: true,
                 message: "Account saved successfully",
@@ -134,7 +134,7 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({ status: false, message: "Account ID is required" }, { status: 400 });
         }
 
-        const ok = await deleteAccount(id);
+        const ok = await deleteAccount(id, user.id);
         if (!ok) {
             return NextResponse.json({ status: false, message: "Account not found" }, { status: 404 });
         }

@@ -81,6 +81,7 @@ export interface SmartChatOptions {
     specificAccountId?: string;
     useRAG?: boolean;
     chatHistory?: ChatMessage[];
+    userId?: string;
 }
 
 /**
@@ -90,8 +91,8 @@ export interface SmartChatOptions {
  * 3. Dispatches across accounts with smart failover and cooldown recovery
  */
 export async function executeSmartChat(options: SmartChatOptions): Promise<GatewayExecutionResult> {
-    const { question, customSystemPrompt, specificAccountId, useRAG = true, chatHistory = [] } = options;
-    const store = await getAIGatewayData();
+    const { question, customSystemPrompt, specificAccountId, useRAG = true, chatHistory = [], userId } = options;
+    const store = await getAIGatewayData(userId);
 
     // 0. Strict Deterministic Filter against coding, programming, math homework, or hacking scripts
     const isOutOfScope = /\b(python|javascript|java|c\+\+|html|css|php|sql query|bash|shell script|def |function|for loop|while loop|lambda|class |import |print\(|code likh|code do|program likh|script likh|homework|algebra|solve this equation)\b/i.test(question);
@@ -115,7 +116,7 @@ export async function executeSmartChat(options: SmartChatOptions): Promise<Gatew
     let ragContextBlock = "";
 
     if (useRAG) {
-        const scored = await searchKnowledgeBase(question);
+        const scored = await searchKnowledgeBase(question, userId);
         if (scored.length > 0) {
             retrievedChunks = scored.map((s) => ({
                 docTitle: s.chunk.docTitle,
@@ -193,6 +194,13 @@ CRITICAL BUSINESS DOMAIN & SECURITY GUARDRAILS (STRICT COMPLIANCE REQUIRED):
         candidateAccounts = getEligibleAccounts(store.accounts, store.gatewayConfig.routingStrategy);
     }
 
+    if (candidateAccounts.length === 0 && userId && userId !== "default") {
+        try {
+            const defaultStore = await getAIGatewayData("default");
+            candidateAccounts = getEligibleAccounts(defaultStore.accounts, defaultStore.gatewayConfig.routingStrategy);
+        } catch {}
+    }
+
     if (candidateAccounts.length === 0) {
         throw new Error(
             "No active AI accounts available in AI Gateway. Please configure at least one active API key in Dashboard > AI Gateway."
@@ -237,7 +245,7 @@ CRITICAL BUSINESS DOMAIN & SECURITY GUARDRAILS (STRICT COMPLIANCE REQUIRED):
             account.lastError = undefined;
 
             // Save updated stats asynchronously
-            saveAIGatewayData(store).catch((err) =>
+            saveAIGatewayData(store, userId).catch((err) =>
                 logger.error("AIGateway", "Failed to persist account stats", err)
             );
 

@@ -211,8 +211,8 @@ export function retrieveRelevantChunks(
 /**
  * Retrieve chunks using the current stored knowledge base
  */
-export async function searchKnowledgeBase(query: string): Promise<ScoredChunk[]> {
-    const data = await getAIGatewayData();
+export async function searchKnowledgeBase(query: string, userId?: string): Promise<ScoredChunk[]> {
+    const data = await getAIGatewayData(userId);
     const activeDocs = data.documents.filter((d) => d.isActive);
     const allChunks: RAGChunk[] = [];
 

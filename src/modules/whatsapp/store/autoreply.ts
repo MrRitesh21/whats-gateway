@@ -209,7 +209,7 @@ export async function bindAutoReply(sock: WASocket, sessionId: string) {
                 if (!matchedRule) {
                     try {
                         const { getAIGatewayData } = await import("@/lib/ai-gateway/storage");
-                        const aiData = await getAIGatewayData();
+                        const aiData = await getAIGatewayData(session.userId);
                         const ragCfg = aiData.ragConfig;
                         const isSessionEnabled = !ragCfg.whatsappSessions?.length || ragCfg.whatsappSessions.includes(sessionId);
                         const isCommand = /^[#!/.][a-zA-Z0-9]/.test(text.trim());
@@ -268,6 +268,7 @@ export async function bindAutoReply(sock: WASocket, sessionId: string) {
                                 question: text.trim(),
                                 useRAG: true,
                                 chatHistory,
+                                userId: session.userId,
                             });
 
                             if (aiRes.answer) {

@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ status: false, message: "Unauthorized" }, { status: 401 });
         }
 
-        const data = await getAIGatewayData();
+        const data = await getAIGatewayData(user.id);
         const docsWithStats = data.documents.map((doc) => {
             const chunks = chunkDocument(doc, data.ragConfig.chunkSize, data.ragConfig.chunkOverlap);
             return {
@@ -59,9 +59,9 @@ export async function POST(request: NextRequest) {
             updatedAt: now,
         };
 
-        await saveDocument(docToSave);
+        await saveDocument(docToSave, user.id);
 
-        const data = await getAIGatewayData();
+        const data = await getAIGatewayData(user.id);
         const chunks = chunkDocument(docToSave, data.ragConfig.chunkSize, data.ragConfig.chunkOverlap);
 
         return NextResponse.json({
@@ -93,7 +93,7 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({ status: false, message: "Document ID is required" }, { status: 400 });
         }
 
-        const ok = await deleteDocument(id);
+        const ok = await deleteDocument(id, user.id);
         if (!ok) {
             return NextResponse.json({ status: false, message: "Document not found" }, { status: 404 });
         }
