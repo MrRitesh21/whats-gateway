@@ -104,30 +104,18 @@ export default function BulkMessengerPage() {
                 body: formData,
             });
             const data = await res.json().catch(() => ({ status: false, message: "Upload failed" }));
-            if (data.status && data.data?.url) {
-                setMediaUrl(data.data.url);
+            if (data.status && (data.data?.fileUrl || data.data?.url)) {
+                setMediaUrl(data.data.fileUrl || data.data.url);
                 toast.success(`Attached "${file.name}" successfully!`);
-            } else if (file.size <= 4 * 1024 * 1024) {
-                const reader = new FileReader();
-                reader.onload = () => {
-                    setMediaUrl(reader.result as string);
-                    toast.success(`Attached "${file.name}"!`);
-                };
-                reader.readAsDataURL(file);
             } else {
-                toast.error(data.message || `File "${file.name}" is too large. Max size is 16MB.`);
+                setMediaUrl("");
+                setMediaFileName("");
+                toast.error(data.message || `Failed to upload "${file.name}".`);
             }
         } catch (err: any) {
-            if (file.size <= 4 * 1024 * 1024) {
-                const reader = new FileReader();
-                reader.onload = () => {
-                    setMediaUrl(reader.result as string);
-                    toast.success(`Attached "${file.name}"!`);
-                };
-                reader.readAsDataURL(file);
-            } else {
-                toast.error(err?.message || `Failed to upload "${file.name}"`);
-            }
+            setMediaUrl("");
+            setMediaFileName("");
+            toast.error(err?.message || `Failed to upload "${file.name}"`);
         } finally {
             setUploadingMedia(false);
         }

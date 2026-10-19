@@ -12,32 +12,68 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-        const formData = await request.formData().catch(() => null);
-        if (!formData) {
-            return NextResponse.json({ status: false, message: "Invalid multipart form data" }, { status: 400 });
+        const contentType = (request.headers.get("content-type") || "").toLowerCase();
+        let buffer: Buffer | null = null;
+        let originalName = "attachment";
+        let mime = "";
+
+        if (contentType.includes("application/json")) {
+            const body = await request.json().catch(() => ({}));
+            const raw = body.file || body.data || body.dataUri || body.base64;
+            if (!raw || typeof raw !== "string") {
+                return NextResponse.json({ status: false, message: "No valid file data in JSON payload" }, { status: 400 });
+            }
+
+            originalName = body.filename || body.name || "attachment";
+            if (raw.startsWith("data:")) {
+                const match = raw.match(/^data:([^;]+);base64,(.+)$/);
+                if (match) {
+                    mime = match[1];
+                    buffer = Buffer.from(match[2], "base64");
+                } else {
+                    const commaIdx = raw.indexOf(",");
+                    buffer = Buffer.from(commaIdx >= 0 ? raw.slice(commaIdx + 1) : raw, "base64");
+                }
+            } else {
+                buffer = Buffer.from(raw, "base64");
+            }
+        } else {
+            const formData = await request.formData().catch((err) => {
+                console.error("formData parsing error:", err);
+                return null;
+            });
+            if (!formData) {
+                return NextResponse.json({ status: false, message: "Invalid form data or request payload" }, { status: 400 });
+            }
+
+            const rawFile = formData.get("file") || formData.get("media") || formData.get("attachment");
+            if (!rawFile || typeof rawFile === "string" || typeof (rawFile as any).arrayBuffer !== "function") {
+                return NextResponse.json({ status: false, message: "No valid file attached to upload" }, { status: 400 });
+            }
+
+            const file = rawFile as File;
+            if (file.size === 0) {
+                return NextResponse.json({ status: false, message: "Uploaded file is empty" }, { status: 400 });
+            }
+
+            mime = (file.type || "").toLowerCase();
+            originalName = file.name || "attachment";
+            buffer = Buffer.from(await file.arrayBuffer());
         }
 
-        const rawFile = formData.get("file") || formData.get("media") || formData.get("attachment");
-        if (!rawFile || typeof rawFile === "string" || typeof (rawFile as any).arrayBuffer !== "function") {
-            return NextResponse.json({ status: false, message: "No valid file uploaded" }, { status: 400 });
-        }
-
-        const file = rawFile as File;
-        if (file.size === 0) {
+        if (!buffer || buffer.length === 0) {
             return NextResponse.json({ status: false, message: "Uploaded file is empty" }, { status: 400 });
         }
 
         // Support files up to 50MB
         const MAX = 50 * 1024 * 1024;
-        if (file.size > MAX) {
+        if (buffer.length > MAX) {
             return NextResponse.json(
                 { status: false, message: "File exceeds 50MB limit. Please attach a smaller file or use an external URL." },
                 { status: 400 }
             );
         }
 
-        const mime = (file.type || "").toLowerCase();
-        const originalName = file.name || "attachment";
         const ext = path.extname(originalName).toLowerCase();
 
         // Categorize media type
@@ -50,14 +86,12 @@ export async function POST(request: NextRequest) {
             type = "document";
         }
 
-        const buffer = Buffer.from(await file.arrayBuffer());
-
         // Save to data/media directory for fast local streaming without memory bloat
         const mediaDir = path.join(process.cwd(), "data", "media");
         await fs.mkdir(mediaDir, { recursive: true });
 
         const safeExt = ext || (type === "image" ? ".jpg" : type === "video" ? ".mp4" : ".bin");
-        const cleanBaseName = path.basename(originalName, ext).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 40);
+        const cleanBaseName = path.basename(originalName, ext).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 40) || "file";
         const savedFilename = `broadcast_${Date.now()}_${cleanBaseName}${safeExt}`;
         const filePath = path.join(mediaDir, savedFilename);
 
@@ -65,26 +99,20 @@ export async function POST(request: NextRequest) {
 
         const mediaUrl = `/api/media/${encodeURIComponent(savedFilename)}`;
 
-        // For small images (< 1MB), also provide dataUri so previews render instantly even if offline
-        let dataUri: string | undefined;
-        if (file.size <= 1024 * 1024 && type === "image") {
-            const mimeType = mime || "image/jpeg";
-            dataUri = `data:${mimeType};base64,${buffer.toString("base64")}`;
-        }
-
         return NextResponse.json({
             status: true,
             message: "File uploaded successfully",
             data: {
-                url: dataUri || mediaUrl,
+                url: mediaUrl,
                 fileUrl: mediaUrl,
+                previewUrl: mediaUrl,
                 filename: originalName,
                 type,
-                size: file.size,
+                size: buffer.length,
             }
         });
     } catch (error: any) {
-        console.error("Upload error:", error);
+        console.error("Upload error in /api/autobroadcast/upload:", error);
         return NextResponse.json({ status: false, message: error?.message || "Upload failed" }, { status: 400 });
     }
 }
