@@ -5,6 +5,7 @@ import { MobileNav } from "@/components/dashboard/mobile-nav";
 import { SessionSelector } from "@/components/dashboard/session-selector";
 import { Button } from "@/components/ui/button";
 import { RealtimeClock } from "@/components/dashboard/realtime-clock";
+import { PWAInstallButton } from "@/components/pwa/pwa-install-modal";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Bell, Inbox, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -172,6 +173,7 @@ export function Navbar({ appName }: NavbarProps) {
             </div>
 
             <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
+                <PWAInstallButton size="sm" className="h-8 sm:h-9 text-xs sm:text-sm px-2.5 sm:px-3" />
                 <span className="hidden md:inline"><RealtimeClock /></span>
                 <SessionSelector />
                 <div className="h-6 w-px bg-border/50 hidden sm:block" />

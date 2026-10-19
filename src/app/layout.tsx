@@ -18,6 +18,23 @@ export const metadata: Metadata = {
   metadataBase: new URL(process.env.BASE_URL || process.env.NEXTAUTH_URL || "http://localhost:3030"),
   title: "WAFlow WhatsApp | WhatsApp Gateway & Automation",
   description: "Next-generation WhatsApp Gateway & Automation by WAFlow WhatsApp",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "WAFlow",
+  },
+  applicationName: "WAFlow WhatsApp",
+  icons: {
+    icon: [
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [
+      { url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
   robots: {
     index: process.env.NEXT_PUBLIC_ALLOW_INDEXING === "true",
     follow: process.env.NEXT_PUBLIC_ALLOW_INDEXING === "true",
@@ -31,8 +48,8 @@ export const viewport = {
   userScalable: true,
   viewportFit: "cover" as const,
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+    { media: "(prefers-color-scheme: light)", color: "#10b981" },
+    { media: "(prefers-color-scheme: dark)", color: "#090d16" },
   ],
 };
 
@@ -44,10 +61,15 @@ export default function RootLayout({
   return (
     <html lang="en" translate="no" suppressHydrationWarning data-scroll-behavior="smooth" className="scroll-smooth notranslate">
       <head>
-        {/* Disable browser translators (Google Translate, Edge Translate, etc.).
-            App content includes dynamic data (WhatsApp JIDs, session names,
-            message content) that must NOT be translated. Translators also
-            mutate the DOM, breaking React reconciliation. */}
+        {/* PWA primary meta tags */}
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-touch-fullscreen" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="WAFlow" />
+        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+        {/* Disable browser translators */}
         <meta name="google" content="notranslate" />
       </head>
       <body

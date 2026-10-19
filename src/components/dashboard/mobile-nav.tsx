@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Menu, ChevronDown } from "lucide-react";
+import { Menu, LogOut, Download } from "lucide-react";
+import { usePWAInstall } from "@/components/pwa/pwa-provider";
 import Link from "next/link";
 import {
     Gauge,
