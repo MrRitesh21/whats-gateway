@@ -99,9 +99,9 @@ export async function getAIGatewayData(userId?: string): Promise<AIGatewayStoreD
         if (cfg?.aiGatewayConfig && typeof cfg.aiGatewayConfig === "object") {
             const parsed = cfg.aiGatewayConfig as any;
             const data: AIGatewayStoreData = {
-                accounts: Array.isArray(parsed.accounts) ? parsed.accounts : DEFAULT_CONFIG.accounts,
+                accounts: Array.isArray(parsed.accounts) ? parsed.accounts : (key === "default" ? DEFAULT_CONFIG.accounts : []),
                 gatewayConfig: { ...DEFAULT_CONFIG.gatewayConfig, ...(parsed.gatewayConfig || {}) },
-                documents: Array.isArray(parsed.documents) ? parsed.documents : DEFAULT_CONFIG.documents,
+                documents: Array.isArray(parsed.documents) ? parsed.documents : (key === "default" ? DEFAULT_CONFIG.documents : []),
                 ragConfig: { ...DEFAULT_CONFIG.ragConfig, ...(parsed.ragConfig || {}) },
             };
             inMemoryCaches.set(key, { data, lastReadTime: now });
@@ -117,9 +117,9 @@ export async function getAIGatewayData(userId?: string): Promise<AIGatewayStoreD
         const raw = await fs.readFile(configFile, "utf-8");
         const parsed = JSON.parse(raw);
         const data: AIGatewayStoreData = {
-            accounts: Array.isArray(parsed.accounts) ? parsed.accounts : DEFAULT_CONFIG.accounts,
+            accounts: Array.isArray(parsed.accounts) ? parsed.accounts : (key === "default" ? DEFAULT_CONFIG.accounts : []),
             gatewayConfig: { ...DEFAULT_CONFIG.gatewayConfig, ...(parsed.gatewayConfig || {}) },
-            documents: Array.isArray(parsed.documents) ? parsed.documents : DEFAULT_CONFIG.documents,
+            documents: Array.isArray(parsed.documents) ? parsed.documents : (key === "default" ? DEFAULT_CONFIG.documents : []),
             ragConfig: { ...DEFAULT_CONFIG.ragConfig, ...(parsed.ragConfig || {}) },
         };
         inMemoryCaches.set(key, { data, lastReadTime: now });
@@ -133,7 +133,7 @@ export async function getAIGatewayData(userId?: string): Promise<AIGatewayStoreD
 
         return data;
     } catch {
-        // If neither exists for this user: inherit from default configuration so they have working template
+        // If neither exists for this user: inherit system defaults for gateway and RAG config, but keep accounts isolated
         let baseConfig = DEFAULT_CONFIG;
         if (key !== "default") {
             try {
@@ -143,7 +143,12 @@ export async function getAIGatewayData(userId?: string): Promise<AIGatewayStoreD
             }
         }
 
-        const fresh: AIGatewayStoreData = JSON.parse(JSON.stringify(baseConfig));
+        const fresh: AIGatewayStoreData = {
+            accounts: key === "default" ? JSON.parse(JSON.stringify(baseConfig.accounts || [])) : [],
+            gatewayConfig: JSON.parse(JSON.stringify(baseConfig.gatewayConfig || {})),
+            documents: key === "default" ? JSON.parse(JSON.stringify(baseConfig.documents || [])) : [],
+            ragConfig: JSON.parse(JSON.stringify(baseConfig.ragConfig || {})),
+        };
         inMemoryCaches.set(key, { data: fresh, lastReadTime: now });
 
         if (key === "default") {

@@ -11,17 +11,27 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ form
             return NextResponse.json({ status: false, message: "Form not found" }, { status: 404 });
         }
 
-        // Fast path for public visitor: if no auth cookie/header present, skip auth check entirely
-        const authHeader = req.headers.get("authorization");
-        const hasAuthCookie = req.cookies.has("auth_token") || req.cookies.has("session") || req.cookies.has("token");
-
+        // Authenticated user can view submissions for their forms
         let submissions: any[] = [];
-        if (authHeader || hasAuthCookie) {
-            const user = await getAuthenticatedUser(req).catch(() => null);
-            if (user) {
-                const allData = await getFormsData(user.id);
-                submissions = allData.submissions.filter((s) => s.formId === formId);
+        const user = await getAuthenticatedUser(req).catch(() => null);
+        if (user) {
+            // Check user's own store
+            const userStore = await getFormsData(user.id);
+            let formSubmissions = (userStore.submissions || []).filter((s) => s.formId === formId);
+
+            // If not found in user's store and form has an owner, check owner's store (superadmin access)
+            if (formSubmissions.length === 0 && form.userId && form.userId !== user.id && user.role === "SUPERADMIN") {
+                const ownerStore = await getFormsData(form.userId);
+                formSubmissions = (ownerStore.submissions || []).filter((s) => s.formId === formId);
             }
+
+            // Fallback check in default store if still empty
+            if (formSubmissions.length === 0) {
+                const defStore = await getFormsData("default");
+                formSubmissions = (defStore.submissions || []).filter((s) => s.formId === formId);
+            }
+
+            submissions = formSubmissions;
         }
 
         return NextResponse.json({

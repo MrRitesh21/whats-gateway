@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
         let targetAccount: AIAccount | null = null;
 
         if (body.accountId) {
-            const data = await getAIGatewayData();
+            const data = await getAIGatewayData(user.id);
             targetAccount = data.accounts.find((a) => a.id === body.accountId) || null;
             if (!targetAccount) {
                 return NextResponse.json({ status: false, message: "Account not found" }, { status: 404 });
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
             // If API key is masked and account has an ID, look up the stored key
             let finalKey = acc.apiKey?.trim() || "";
             if (acc.id && (finalKey.includes("...") || finalKey === "********" || !finalKey)) {
-                const data = await getAIGatewayData();
+                const data = await getAIGatewayData(user.id);
                 const existing = data.accounts.find((a) => a.id === acc.id);
                 if (existing) finalKey = existing.apiKey;
             }

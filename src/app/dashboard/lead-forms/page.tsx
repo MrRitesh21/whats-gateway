@@ -67,6 +67,7 @@ export default function LeadFormsDashboard() {
     const [editorTab, setEditorTab] = useState<"general" | "fields" | "ai" | "styling">("general");
     const [embedTab, setEmbedTab] = useState<"iframe" | "html" | "link">("iframe");
     const [selectedFormForEmbed, setSelectedFormForEmbed] = useState<LeadForm | null>(null);
+    const [allSubmissions, setAllSubmissions] = useState<FormSubmission[]>([]);
     const [selectedFormSubmissions, setSelectedFormSubmissions] = useState<FormSubmission[]>([]);
     const [loadingSubmissions, setLoadingSubmissions] = useState(false);
 
@@ -87,6 +88,7 @@ export default function LeadFormsDashboard() {
             const data = await res.json();
             if (data.status) {
                 setForms(data.data.forms || []);
+                setAllSubmissions(data.data.submissions || []);
                 setSessions(data.data.sessions || []);
             } else {
                 toast.error(data.message || "Failed to load forms");
@@ -199,16 +201,20 @@ export default function LeadFormsDashboard() {
 
     const handleOpenSubmissions = async (form: LeadForm) => {
         setSelectedFormForEmbed(form);
-        setLoadingSubmissions(true);
+        const localSubs = allSubmissions.filter((s) => s.formId === form.id);
+        setSelectedFormSubmissions(localSubs);
         setSubmissionsModalOpen(true);
+        setLoadingSubmissions(localSubs.length === 0);
         try {
             const res = await fetch(`/api/forms/${form.id}`);
             const result = await res.json();
-            if (result.status) {
-                setSelectedFormSubmissions(result.data?.submissions || []);
+            if (result.status && Array.isArray(result.data?.submissions)) {
+                if (result.data.submissions.length > 0 || localSubs.length === 0) {
+                    setSelectedFormSubmissions(result.data.submissions);
+                }
             }
         } catch {
-            toast.error("Failed to load submissions");
+            // Keep localSubs on fetch error
         } finally {
             setLoadingSubmissions(false);
         }
@@ -1058,6 +1064,16 @@ export default function LeadFormsDashboard() {
                                             <TableCell>
                                                 <div className="font-semibold text-slate-900 dark:text-white">{sub.name || "Inbound Lead"}</div>
                                                 {sub.email && <div className="text-slate-400 text-[11px]">{sub.email}</div>}
+                                                {sub.data?.service && (
+                                                    <span className="inline-block px-1.5 py-0.5 mt-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded text-[10px] font-medium">
+                                                        {sub.data.service}
+                                                    </span>
+                                                )}
+                                                {sub.data?.message && (
+                                                    <div className="text-[11px] text-slate-500 italic mt-0.5 line-clamp-2 max-w-xs">
+                                                        "{sub.data.message}"
+                                                    </div>
+                                                )}
                                             </TableCell>
                                             <TableCell>
                                                 <span className="font-mono text-slate-700 dark:text-slate-300">+{sub.phone}</span>

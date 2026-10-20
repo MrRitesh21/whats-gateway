@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
             data: {
                 forms: data.forms,
                 totalSubmissions: data.submissions.length,
+                submissions: data.submissions,
                 sessions,
             },
         });
