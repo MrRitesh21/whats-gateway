@@ -13,6 +13,7 @@ import {
     addLeadActivity,
 } from "@/lib/crm/storage";
 import { normalizePhoneNumber } from "@/lib/crm/csv-parser";
+import { reconcileFormSubmissionsToCRM } from "@/lib/crm/form-reconciliation";
 import type { Lead, LeadStage, LeadPriority } from "@/lib/crm/types";
 
 // ─── GET: List leads with search, filters & pipeline metrics ──────────────────
@@ -35,6 +36,9 @@ export async function GET(request: NextRequest) {
         const isAll = limitParam === "all";
         const limit = isAll ? 100000 : parseInt(limitParam, 10) || 5000;
 
+        // Repair submissions persisted by older builds whose CRM writes were
+        // lost by shared-config overwrites, before serving the lead list.
+        await reconcileFormSubmissionsToCRM(user.id);
         const data = await getCRMData(user.id);
         const todayStr = new Date().toISOString().split("T")[0];
 

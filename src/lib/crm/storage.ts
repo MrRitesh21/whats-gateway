@@ -35,6 +35,13 @@ function getConfigFile(userId?: string): string {
 
 function getRecordId(userId?: string): string {
     const key = normalizeKey(userId);
+    // CRM and lead forms used to share SystemConfig.crmData on the same row.
+    // Give CRM its own row so writes cannot erase forms (or vice versa).
+    return `crm_${key}`;
+}
+
+function getLegacyRecordId(userId?: string): string {
+    const key = normalizeKey(userId);
     return key === "default" ? "default" : `user_${key}`;
 }
 
@@ -72,10 +79,18 @@ export async function getCRMData(userId?: string): Promise<CRMStoreData> {
 
     try {
         // 1. Read from PostgreSQL SystemConfig (persistent across redeploys)
-        const cfg = await prisma.systemConfig.findUnique({
+        let cfg = await prisma.systemConfig.findUnique({
             where: { id: recordId },
             select: { crmData: true },
         }).catch(() => null);
+        // One-time read-through migration from the legacy shared row. All future
+        // CRM writes go to crm_${tenant}, separate from forms storage.
+        if (!Array.isArray((cfg?.crmData as any)?.leads)) {
+            cfg = await prisma.systemConfig.findUnique({
+                where: { id: getLegacyRecordId(userId) },
+                select: { crmData: true },
+            }).catch(() => null);
+        }
 
         if (cfg?.crmData && typeof cfg.crmData === "object") {
             const parsed = cfg.crmData as any;

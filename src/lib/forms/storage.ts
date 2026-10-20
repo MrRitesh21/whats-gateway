@@ -25,6 +25,12 @@ function getConfigFile(userId?: string): string {
 }
 
 function getRecordId(userId?: string): string {
+    // Forms and CRM must never write the same JSON blob; separate rows avoid
+    // PostgreSQL read/modify/write races that used to lose leads or submissions.
+    return `forms_${normalizeKey(userId)}`;
+}
+
+function getLegacyRecordId(userId?: string): string {
     const key = normalizeKey(userId);
     return key === "default" ? "default" : `user_${key}`;
 }
@@ -121,10 +127,18 @@ export async function getFormsData(userId?: string): Promise<FormsStoreData> {
 
     try {
         // 1. Try reading from PostgreSQL SystemConfig (persistent across redeploys)
-        const cfg = await prisma.systemConfig.findUnique({
+        let cfg = await prisma.systemConfig.findUnique({
             where: { id: recordId },
             select: { crmData: true },
         }).catch(() => null);
+        // Read existing submissions from the legacy shared tenant row once;
+        // writes below persist only to this dedicated forms row.
+        if (!Array.isArray((cfg?.crmData as any)?.leadForms?.forms)) {
+            cfg = await prisma.systemConfig.findUnique({
+                where: { id: getLegacyRecordId(userId) },
+                select: { crmData: true },
+            }).catch(() => null);
+        }
 
         if (cfg?.crmData && typeof cfg.crmData === "object") {
             const crmObj = cfg.crmData as any;
@@ -236,36 +250,57 @@ export async function getFormById(id: string, userId?: string): Promise<LeadForm
         if (found) return found;
     }
 
-    // Search in-memory caches
-    for (const [, entry] of inMemoryCaches.entries()) {
-        const match = entry.data.forms.find((f) => f.id === id);
-        if (match) return match;
-    }
-
-    // Check default store
-    const defData = await getFormsData("default");
-    const defMatch = defData.forms.find((f) => f.id === id);
-    if (defMatch) return defMatch;
-
-    // Scan database SystemConfig rows to find form across accounts
+    // Public form URLs have no authenticated tenant context. Resolve against
+    // durable storage and prefer the uniquely owned tenant form over the
+    // legacy shared/default form (for example, the old "contact-us" ID).
     try {
         const configs = await prisma.systemConfig.findMany({
-            select: { id: true, crmData: true }
+            select: { id: true, crmData: true },
         });
+        const owned = new Map<string, LeadForm>();
+        let defaultForm: LeadForm | null = null;
+
         for (const row of configs) {
             const crm = row.crmData as any;
             const forms = crm?.leadForms?.forms;
-            if (Array.isArray(forms)) {
-                const found = forms.find((f: any) => f.id === id);
-                if (found) {
-                    const ownerUserId = row.id.startsWith("user_") ? row.id.replace("user_", "") : undefined;
-                    return { ...found, userId: found.userId || ownerUserId };
-                }
+            if (!Array.isArray(forms)) continue;
+            const form = forms.find((item: LeadForm) => item.id === id);
+            if (!form) continue;
+
+            const inferredOwner = row.id.startsWith("forms_user_")
+                ? row.id.slice("forms_user_".length)
+                : row.id.startsWith("user_")
+                    ? row.id.slice("user_".length)
+                    : undefined;
+            const owner = form.userId || inferredOwner;
+            if (owner && owner !== "default") {
+                owned.set(owner, { ...form, userId: owner });
+            } else {
+                defaultForm ||= { ...form, userId: undefined };
             }
         }
-    } catch {}
 
-    return null;
+        // Never pick an arbitrary tenant if a legacy ID is ambiguous.
+        if (owned.size === 1) return owned.values().next().value || null;
+        if (owned.size > 1) return null;
+        if (defaultForm) return defaultForm;
+    } catch (error) {
+        logger.error("Forms", `Failed to resolve public form ${id} from durable storage`, error);
+    }
+
+    // DB unavailable: deterministic cache fallback, owned partitions before default.
+    const entries = [...inMemoryCaches.entries()].sort(([a], [b]) => {
+        if (a === "default") return 1;
+        if (b === "default") return -1;
+        return a.localeCompare(b);
+    });
+    const cachedMatches = entries
+        .map(([key, entry]) => ({ key, form: entry.data.forms.find((item) => item.id === id) }))
+        .filter((entry): entry is { key: string; form: LeadForm } => Boolean(entry.form));
+    const cachedOwners = cachedMatches.filter(({ key }) => key !== "default");
+    if (cachedOwners.length === 1) return cachedOwners[0].form;
+    if (cachedOwners.length > 1) return null;
+    return cachedMatches.find(({ key }) => key === "default")?.form || null;
 }
 
 export async function saveForm(form: LeadForm, userId?: string): Promise<LeadForm> {
@@ -324,11 +359,17 @@ export async function recordSubmission(submission: FormSubmission, userId?: stri
         submission.userId = normalizeKey(targetUserId);
     }
     const data = await getFormsData(targetUserId);
-    data.submissions.unshift(submission);
+    const existingIndex = data.submissions.findIndex((item) => item.id === submission.id);
+    const existing = existingIndex >= 0 ? data.submissions[existingIndex] : undefined;
+    if (existingIndex >= 0) {
+        data.submissions[existingIndex] = { ...existing, ...submission };
+    } else {
+        data.submissions.unshift(submission);
+    }
     const form = data.forms.find((f) => f.id === submission.formId);
     if (form) {
-        form.submissionsCount = (form.submissionsCount || 0) + 1;
-        if (submission.aiOutreachStatus === "SENT") {
+        if (!existing) form.submissionsCount = (form.submissionsCount || 0) + 1;
+        if (submission.aiOutreachStatus === "SENT" && existing?.aiOutreachStatus !== "SENT") {
             form.outreachSentCount = (form.outreachSentCount || 0) + 1;
         }
     }

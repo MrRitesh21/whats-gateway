@@ -16,7 +16,7 @@ export default function PublicFormPage() {
     const [formData, setFormData] = useState<Record<string, string>>({});
     const [submitting, setSubmitting] = useState(false);
     const [submitted, setSubmitted] = useState(false);
-    const [submitResult, setSubmitResult] = useState<{ message: string; outreachSent?: boolean } | null>(null);
+    const [submitResult, setSubmitResult] = useState<{ message: string; outreachSent?: boolean; outreachStatus?: "PENDING" | "SENT" | "FAILED" | "DISABLED" } | null>(null);
     const [validationError, setValidationError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -72,6 +72,7 @@ export default function PublicFormPage() {
                 setSubmitResult({
                     message: result.message || form.successMessage,
                     outreachSent: result.outreachSent,
+                    outreachStatus: result.outreachStatus,
                 });
                 if (result.redirectUrl) {
                     setTimeout(() => {
@@ -181,12 +182,17 @@ export default function PublicFormPage() {
                         <p className="text-sm text-slate-600 dark:text-slate-300 max-w-sm mx-auto leading-relaxed">
                             {submitResult?.message}
                         </p>
-                        {submitResult?.outreachSent && (
+                        {submitResult?.outreachSent ? (
                             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 text-xs font-medium text-emerald-700 dark:text-emerald-300">
                                 <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
-                                Instant WhatsApp outreach dispatched!
+                                WhatsApp follow-up sent.
                             </div>
-                        )}
+                        ) : submitResult?.outreachStatus === "PENDING" ? (
+                            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 text-xs font-medium text-amber-700 dark:text-amber-300">
+                                <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                                Inquiry saved; WhatsApp follow-up is processing.
+                            </div>
+                        ) : null}
                         <div className="pt-4">
                             <button
                                 type="button"

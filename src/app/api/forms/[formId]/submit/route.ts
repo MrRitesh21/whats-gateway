@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getFormById } from "@/lib/forms/storage";
-import { handleFormSubmission, triggerFastSubmission } from "@/lib/forms/outreach";
+import { captureFormSubmission, dispatchFormOutreach } from "@/lib/forms/outreach";
 
 // CORS Headers so client websites can embed the form via JavaScript fetch/AJAX
 const CORS_HEADERS = {
@@ -87,14 +87,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ for
         const ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || undefined;
         const userAgent = req.headers.get("user-agent") || undefined;
 
-        // Instant non-blocking processing: returns HTTP 200 in < 50ms
-        // while running CRM enrichment & WhatsApp AI outreach in the background!
-        const { leadId } = triggerFastSubmission({
-            form,
-            submissionData,
-            ip,
-            userAgent,
+        // Persist CRM + form records before acknowledging the submission. Only
+        // the potentially slow AI/WhatsApp step is detached from the response.
+        const captured = await captureFormSubmission({ form, submissionData, ip, userAgent });
+        void dispatchFormOutreach(captured).catch((error) => {
+            console.error("[Forms] Background outreach dispatch failed", error);
         });
+        const leadId = captured.lead.id;
 
         // If this was a standard browser POST with redirectUrl configured
         const acceptHeader = req.headers.get("accept") || "";
@@ -106,9 +105,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ for
         return NextResponse.json(
             {
                 status: true,
-                message: form.successMessage || "Your inquiry has been submitted successfully!",
+                message: form.enableAiOutreach
+                    ? "Your inquiry has been saved. WhatsApp follow-up is being processed; our team will follow up if delivery fails."
+                    : form.successMessage || "Your inquiry has been submitted successfully!",
                 leadId,
-                outreachSent: true,
+                outreachSent: false,
+                outreachStatus: form.enableAiOutreach ? "PENDING" : "DISABLED",
                 redirectUrl: form.redirectUrl || undefined,
             },
             { status: 200, headers: CORS_HEADERS }
