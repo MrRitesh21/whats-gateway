@@ -54,6 +54,9 @@ export interface Lead {
 export interface CRMStoreData {
     leads: Lead[];
     customStages?: { id: string; name: string; color: string }[];
+    /** Prevent deleted form leads from being resurrected by historical reconciliation. */
+    dismissedLeadIds?: string[];
+    dismissedFormSubmissionIds?: string[];
 }
 
 export interface CSVImportResult {

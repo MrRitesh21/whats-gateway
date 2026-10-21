@@ -12,6 +12,7 @@ import type {
 import { parseLeadsFromCSV } from "./csv-parser";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
+import { removeLeadsAndTrackDismissals } from "./form-deletion";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const DEFAULT_CRM_FILE = path.join(DATA_DIR, "crm-leads.json");
@@ -47,6 +48,8 @@ function getLegacyRecordId(userId?: string): string {
 
 const DEFAULT_CRM_DATA: CRMStoreData = {
     leads: [],
+    dismissedLeadIds: [],
+    dismissedFormSubmissionIds: [],
     customStages: [
         { id: "NEW", name: "New Leads", color: "#3B82F6" },
         { id: "CONTACTED", name: "Contacted", color: "#8B5CF6" },
@@ -102,6 +105,8 @@ export async function getCRMData(userId?: string): Promise<CRMStoreData> {
             const data: CRMStoreData = {
                 leads: taggedLeads,
                 customStages: Array.isArray(parsed.customStages) ? parsed.customStages : DEFAULT_CRM_DATA.customStages,
+                dismissedLeadIds: Array.isArray(parsed.dismissedLeadIds) ? parsed.dismissedLeadIds : [],
+                dismissedFormSubmissionIds: Array.isArray(parsed.dismissedFormSubmissionIds) ? parsed.dismissedFormSubmissionIds : [],
             };
             inMemoryCaches.set(key, { data, lastReadTime: now });
             // Mirror to local disk in background
@@ -123,6 +128,8 @@ export async function getCRMData(userId?: string): Promise<CRMStoreData> {
         const data: CRMStoreData = {
             leads: taggedLeads,
             customStages: Array.isArray(parsed.customStages) ? parsed.customStages : DEFAULT_CRM_DATA.customStages,
+            dismissedLeadIds: Array.isArray(parsed.dismissedLeadIds) ? parsed.dismissedLeadIds : [],
+            dismissedFormSubmissionIds: Array.isArray(parsed.dismissedFormSubmissionIds) ? parsed.dismissedFormSubmissionIds : [],
         };
         inMemoryCaches.set(key, { data, lastReadTime: now });
 
@@ -144,6 +151,8 @@ export async function getCRMData(userId?: string): Promise<CRMStoreData> {
                     const migrated: CRMStoreData = {
                         leads: defaultData.leads.map((l) => ({ ...l, userId: userKey })),
                         customStages: defaultData.customStages || DEFAULT_CRM_DATA.customStages,
+                        dismissedLeadIds: defaultData.dismissedLeadIds || [],
+                        dismissedFormSubmissionIds: defaultData.dismissedFormSubmissionIds || [],
                     };
                     inMemoryCaches.set(key, { data: migrated, lastReadTime: now });
                     saveCRMData(migrated, userId).catch(() => {});
@@ -156,6 +165,8 @@ export async function getCRMData(userId?: string): Promise<CRMStoreData> {
         const fresh: CRMStoreData = {
             leads: key === "default" ? DEFAULT_CRM_DATA.leads : [],
             customStages: DEFAULT_CRM_DATA.customStages,
+            dismissedLeadIds: [],
+            dismissedFormSubmissionIds: [],
         };
         inMemoryCaches.set(key, { data: fresh, lastReadTime: now });
 
@@ -365,10 +376,9 @@ export async function updateLeadFollowUp(
  */
 export async function deleteLead(id: string, userId?: string): Promise<boolean> {
     const data = await getCRMData(userId);
-    const prevLen = data.leads.length;
-    data.leads = data.leads.filter((l) => l.id !== id);
-    if (data.leads.length !== prevLen) {
-        await saveCRMData(data, userId);
+    const result = removeLeadsAndTrackDismissals(data, [id]);
+    if (result.deletedCount > 0) {
+        await saveCRMData(result.data, userId);
         return true;
     }
     return false;
@@ -378,13 +388,11 @@ export async function deleteLead(id: string, userId?: string): Promise<boolean> 
  * Batch delete leads
  */
 export async function deleteLeads(ids: string[], userId?: string): Promise<number> {
-    const idSet = new Set(ids);
     const data = await getCRMData(userId);
-    const prevLen = data.leads.length;
-    data.leads = data.leads.filter((l) => !idSet.has(l.id));
-    const deletedCount = prevLen - data.leads.length;
+    const result = removeLeadsAndTrackDismissals(data, ids);
+    const deletedCount = result.deletedCount;
     if (deletedCount > 0) {
-        await saveCRMData(data, userId);
+        await saveCRMData(result.data, userId);
     }
     return deletedCount;
 }

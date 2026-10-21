@@ -3,16 +3,38 @@ import { getCRMData, saveLead } from "@/lib/crm/storage";
 import type { Lead, LeadStage } from "@/lib/crm/types";
 import { getFormsData } from "@/lib/forms/storage";
 import { logger } from "@/lib/logger";
+import { isFormSubmissionDismissed } from "./form-deletion";
+
+// Historical repair is an idempotent migration, not work to repeat on every
+// search/pagination request. Form submissions now persist their leads inline.
+const reconciledOwners = new Set<string>();
+const reconciliationInFlight = new Map<string, Promise<number>>();
 
 /**
  * Repair historical form submissions that were logged but missed by CRM writes.
  * Idempotency is provided by the per-submission activity ID and lead phone match.
  */
 export async function reconcileFormSubmissionsToCRM(userId: string): Promise<number> {
+    if (reconciledOwners.has(userId)) return 0;
+    const existing = reconciliationInFlight.get(userId);
+    if (existing) return existing;
+    const work = reconcileFormSubmissionsToCRMOnce(userId);
+    reconciliationInFlight.set(userId, work);
+    try {
+        const repaired = await work;
+        reconciledOwners.add(userId);
+        return repaired;
+    } finally {
+        reconciliationInFlight.delete(userId);
+    }
+}
+
+async function reconcileFormSubmissionsToCRMOnce(userId: string): Promise<number> {
     const [formsData, crmData] = await Promise.all([getFormsData(userId), getCRMData(userId)]);
     let repaired = 0;
     for (const submission of formsData.submissions) {
         if (submission.userId && submission.userId !== userId) continue;
+        if (isFormSubmissionDismissed(crmData, submission)) continue;
         const form = formsData.forms.find((item) => item.id === submission.formId);
         const rawPhone = submission.phone || submission.data?.phone || submission.data?.whatsapp || submission.data?.mobile || "";
         const { formatted, isValid } = normalizePhoneNumber(rawPhone, "IN");

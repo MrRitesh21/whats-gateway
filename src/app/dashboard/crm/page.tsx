@@ -149,6 +149,7 @@ export default function CRMPage() {
     const [viewMode, setViewMode] = useState<"kanban" | "table">("table");
     const [loading, setLoading] = useState(true);
     const [leads, setLeads] = useState<Lead[]>([]);
+    const [filteredLeadCount, setFilteredLeadCount] = useState(0);
     const [stageCounts, setStageCounts] = useState<Record<string, number>>({});
     const [categories, setCategories] = useState<string[]>([]);
     const [cities, setCities] = useState<string[]>([]);
@@ -225,7 +226,7 @@ export default function CRMPage() {
     }, [sessions, activeSessionId, selectedSyncSession]);
 
     // Fetch leads from API
-    const fetchLeads = async () => {
+    const fetchLeads = async (signal?: AbortSignal) => {
         setLoading(true);
         try {
             const params = new URLSearchParams({
@@ -234,16 +235,18 @@ export default function CRMPage() {
                 category: selectedCategory,
                 city: selectedCity,
                 priority: selectedPriority,
-                limit: "all",
+                page: String(currentPage),
+                limit: viewMode === "kanban" ? "all" : pageSize,
             });
             if (onlyFollowUpsToday) {
                 params.set("onlyFollowUpsToday", "true");
             }
 
-            const res = await fetch(`/api/crm/leads?${params}`);
+            const res = await fetch(`/api/crm/leads?${params}`, { signal, cache: "no-store" });
             const json = await res.json();
             if (json.status) {
                 setLeads(json.data.leads || []);
+                setFilteredLeadCount(json.data.meta?.total ?? 0);
                 setStageCounts(json.data.stageCounts || {});
                 setCategories(json.data.categories || []);
                 setCities(json.data.cities || []);
@@ -251,19 +254,22 @@ export default function CRMPage() {
                     setMetrics(json.data.metrics);
                 }
             }
-        } catch {
+        } catch (error) {
+            if (error instanceof DOMException && error.name === "AbortError") return;
             toast.error("Failed to load CRM leads");
         } finally {
-            setLoading(false);
+            if (!signal?.aborted) setLoading(false);
         }
     };
 
+    const listRequestVariant = `${pageSize}:${viewMode}`;
     useEffect(() => {
+        const controller = new AbortController();
         const timer = setTimeout(() => {
-            fetchLeads();
-        }, 300);
-        return () => clearTimeout(timer);
-    }, [search, selectedStage, selectedCategory, selectedCity, selectedPriority, onlyFollowUpsToday]);
+            void fetchLeads(controller.signal);
+        }, 120);
+        return () => { clearTimeout(timer); controller.abort(); };
+    }, [search, selectedStage, selectedCategory, selectedCity, selectedPriority, onlyFollowUpsToday, currentPage, listRequestVariant]);
 
     // Reset current page whenever filters or search query change
     useEffect(() => {
@@ -272,12 +278,12 @@ export default function CRMPage() {
 
     // Pagination calculations
     const isAll = pageSize === "all";
-    const numericPageSize = isAll ? Math.max(1, leads.length) : parseInt(pageSize, 10);
-    const totalPages = isAll ? 1 : Math.max(1, Math.ceil(leads.length / numericPageSize));
+    const numericPageSize = isAll ? Math.max(1, filteredLeadCount) : parseInt(pageSize, 10);
+    const totalPages = isAll ? 1 : Math.max(1, Math.ceil(filteredLeadCount / numericPageSize));
     const validCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
     const startIndex = isAll ? 0 : (validCurrentPage - 1) * numericPageSize;
-    const endIndex = isAll ? leads.length : Math.min(startIndex + numericPageSize, leads.length);
-    const displayedLeads = isAll ? leads : leads.slice(startIndex, endIndex);
+    const endIndex = isAll ? leads.length : Math.min(startIndex + leads.length, filteredLeadCount);
+    const displayedLeads = leads;
 
     // Smart page numbers generator with ellipsis
     const pageNumbers = useMemo(() => {
@@ -466,12 +472,13 @@ export default function CRMPage() {
         try {
             const res = await fetch(`/api/crm/leads?id=${id}`, { method: "DELETE" });
             const data = await res.json();
-            if (data.status) {
-                toast.success("Lead removed");
-                setLeads((prev) => prev.filter((l) => l.id !== id));
-            }
-        } catch {
-            toast.error("Failed to delete lead");
+            if (!res.ok || !data.status) throw new Error(data.message || "Failed to delete lead");
+            toast.success("Lead removed");
+            setLeads((prev) => prev.filter((l) => l.id !== id));
+            setFilteredLeadCount((prev) => Math.max(0, prev - 1));
+            setStageCounts((prev) => ({ ...prev, ALL: Math.max(0, (prev.ALL || 0) - 1) }));
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Failed to delete lead");
         }
     };
 
@@ -674,7 +681,7 @@ export default function CRMPage() {
     };
 
     // Summary calculations
-    const totalLeads = leads.length;
+    const totalLeads = stageCounts.ALL || 0;
     const wonCount = stageCounts["WON"] || 0;
     const conversionRate = totalLeads > 0 ? ((wonCount / totalLeads) * 100).toFixed(1) : "0.0";
 

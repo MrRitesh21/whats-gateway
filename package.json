@@ -12,6 +12,7 @@
     "test:instagram": "tsx scripts/test-instagram-comment-dm.ts",
     "test:channels": "tsx scripts/test-channel-automation.ts",
     "test:instagram:oauth": "tsx scripts/test-instagram-oauth.ts",
+    "test:crm:lead-delete": "tsx scripts/test-crm-lead-delete.ts",
     "db:studio": "prisma studio",
     "make-admin": "node scripts/setup-admin.js",
     "postinstall": "patch-package",
