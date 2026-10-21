@@ -465,6 +465,61 @@ model Payment {
   @@index([status])
 }
 
+// Instagram comment webhook audit trail and at-most-once private reply ledger.
+model InstagramCommentEvent {
+  id                 String   @id @default(cuid())
+  commentId          String   @unique
+  instagramAccountId String
+  username           String?
+  commenterId        String?
+  commentText        String   @db.Text
+  mediaId            String?
+  matchedKeyword     String?
+  status             String   @default("received") // processing | sent | failed | ignored
+  dmMessageId        String?
+  errorMessage       String?  @db.Text
+  receivedAt         DateTime @default(now())
+  processedAt        DateTime?
+  updatedAt          DateTime @updatedAt
+
+  @@index([receivedAt])
+  @@index([status, receivedAt])
+}
+
+// Platform-level rules for Meta channels configured by the deployment owner.
+// Credentials are deployment-wide environment variables, not tenant settings.
+model ChannelAutoReplyRule {
+  id        String   @id @default(cuid())
+  channel   String   // INSTAGRAM | WHATSAPP_CLOUD
+  keyword   String
+  matchType String   @default("CONTAINS") // EXACT | CONTAINS | STARTS_WITH | REGEX
+  response  String   @db.Text
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([channel, isActive, createdAt])
+}
+
+// Deduplication ledger for official WhatsApp Cloud API inbound webhooks.
+model WhatsAppCloudEvent {
+  id                String   @id @default(cuid())
+  messageId         String   @unique
+  phoneNumberId     String
+  sender            String
+  messageText       String   @db.Text
+  matchedKeyword    String?
+  status            String   @default("received") // processing | sent | failed | ignored
+  responseMessageId String?
+  errorMessage      String?  @db.Text
+  receivedAt        DateTime @default(now())
+  processedAt       DateTime?
+  updatedAt         DateTime @updatedAt
+
+  @@index([receivedAt])
+  @@index([status, receivedAt])
+}
+
 // System License for source code ownership & domain authorization
 model SystemLicense {
   id             String    @id @default("singleton")

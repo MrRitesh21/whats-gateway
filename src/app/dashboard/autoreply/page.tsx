@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
+import Link from "next/link";
 import { useSession } from "@/components/dashboard/session-provider";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -199,6 +200,11 @@ export default function AutoReplyPage() {
                 <div>
                     <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Auto Replies Builder</h1>
                     <p className="text-muted-foreground text-sm">Setup rules to automatically respond to incoming messages.</p>
+                    <div className="mt-3 flex flex-wrap gap-2" role="tablist" aria-label="Automation channel">
+                        <Button variant="default" size="sm">WhatsApp linked device</Button>
+                        <Button variant="outline" size="sm" asChild><Link href="/dashboard/autoreply/whatsapp-cloud">WhatsApp Official API</Link></Button>
+                        <Button variant="outline" size="sm" asChild><Link href="/dashboard/autoreply/instagram">Instagram</Link></Button>
+                    </div>
                 </div>
 
                 <Dialog open={isCreateOpen} onOpenChange={(open) => {

@@ -35,6 +35,7 @@ import {
     LogOut,
     Users,
     FileText,
+    Instagram,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
@@ -84,6 +85,7 @@ const navGroups: NavGroup[] = [
             { href: "/dashboard/auto-broadcast", label: "Auto Broadcast", icon: Radar, capability: "autoBroadcast" },
             { href: "/dashboard/jpm-swgc", label: "JPM SWGC", icon: GitFork, capability: "jpm" },
             { href: "/dashboard/webhooks", label: "Webhooks & API", icon: Cable, capability: "webhook" },
+            { href: "/dashboard/instagram-comments", label: "Instagram Comment → DM", icon: Instagram, superadminOnly: true },
         ],
     },
     {
