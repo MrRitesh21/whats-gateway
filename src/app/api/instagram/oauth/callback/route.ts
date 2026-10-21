@@ -1,8 +1,8 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { encryptInstagramToken } from "@/lib/instagram-token-crypto";
+import { verifyInstagramOAuthState } from "@/lib/instagram-oauth-state";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,19 +19,8 @@ function redirectResult(request: NextRequest, result: string) {
 }
 
 function verifyState(state: string, cookieValue: string) {
-  const [payload, signature, extra] = state.split(".");
-  if (!payload || !signature || extra || state !== cookieValue) return null;
   const key = process.env.AUTH_SECRET?.trim();
-  if (!key) return null;
-  const expected = createHmac("sha256", key).update(payload).digest();
-  let supplied: Buffer;
-  try { supplied = Buffer.from(signature, "base64url"); } catch { return null; }
-  if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) return null;
-  try {
-    const value = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { userId?: unknown; nonce?: unknown; expires?: unknown };
-    if (typeof value.userId !== "string" || typeof value.nonce !== "string" || typeof value.expires !== "number" || value.expires < Date.now()) return null;
-    return value;
-  } catch { return null; }
+  return key ? verifyInstagramOAuthState(state, cookieValue, key) : null;
 }
 
 async function jsonOrError(response: Response) {

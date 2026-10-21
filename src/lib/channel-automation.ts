@@ -2,18 +2,33 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 
 export type ChannelRule = { id: string; keyword: string; matchType: string; response: string };
 
-export function matchesChannelRule(text: string, rule: Pick<ChannelRule, "keyword" | "matchType">): boolean {
+export function findMatchingChannelKeyword(text: string, rule: Pick<ChannelRule, "keyword" | "matchType">): string | null {
   const source = text.normalize("NFKC");
-  const keyword = rule.keyword.normalize("NFKC").trim();
-  if (!keyword) return false;
-  switch (rule.matchType.toUpperCase()) {
-    case "EXACT": return source.toLocaleLowerCase() === keyword.toLocaleLowerCase();
-    case "STARTS_WITH": return source.toLocaleLowerCase().startsWith(keyword.toLocaleLowerCase());
-    case "REGEX":
-      try { return new RegExp(keyword, "iu").test(source); } catch { return false; }
-    case "CONTAINS":
-    default: return source.toLocaleLowerCase().includes(keyword.toLocaleLowerCase());
+  const matchType = rule.matchType.toUpperCase();
+  const primary = rule.keyword.normalize("NFKC").trim();
+  if (!primary) return null;
+  const variants = matchType === "REGEX" ? [primary] : primary.split(/[,\n]/).map((term) => term.normalize("NFKC").trim()).filter(Boolean);
+  for (const variant of variants) {
+    switch (matchType) {
+      case "EXACT":
+        if (source.toLowerCase() === variant.toLowerCase()) return variant;
+        break;
+      case "STARTS_WITH":
+        if (source.toLowerCase().startsWith(variant.toLowerCase())) return variant;
+        break;
+      case "REGEX":
+        try { if (new RegExp(variant, "iu").test(source)) return variant; } catch { /* invalid regex does not match */ }
+        break;
+      case "CONTAINS":
+      default:
+        if (source.toLowerCase().includes(variant.toLowerCase())) return variant;
+    }
   }
+  return null;
+}
+
+export function matchesChannelRule(text: string, rule: Pick<ChannelRule, "keyword" | "matchType">): boolean {
+  return findMatchingChannelKeyword(text, rule) !== null;
 }
 
 export function verifyMetaSignature(rawBody: string, signature: string | null, appSecret: string): boolean {

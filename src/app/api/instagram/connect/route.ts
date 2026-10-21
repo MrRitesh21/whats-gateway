@@ -1,6 +1,6 @@
-import { createHmac, randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/api-auth";
+import { createInstagramOAuthState } from "@/lib/instagram-oauth-state";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,11 +13,6 @@ function stateKey() {
   if (!key) throw new Error("AUTH_SECRET is not configured");
   return key;
 }
-function makeState(userId: string, nonce: string, expires: number) {
-  const payload = Buffer.from(JSON.stringify({ userId, nonce, expires })).toString("base64url");
-  const signature = createHmac("sha256", stateKey()).update(payload).digest("base64url");
-  return `${payload}.${signature}`;
-}
 
 export async function GET(request: NextRequest) {
   const user = await getAuthenticatedUser(request);
@@ -28,8 +23,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Instagram connection is not configured on the server" }, { status: 503 });
   }
   try {
-    const nonce = randomBytes(32).toString("base64url");
-    const state = makeState(user.id, nonce, Date.now() + STATE_MAX_AGE * 1000);
+    const state = createInstagramOAuthState(user.id, stateKey(), Date.now() + STATE_MAX_AGE * 1000);
     const redirectUri = process.env.INSTAGRAM_REDIRECT_URI?.trim() || new URL("/api/instagram/oauth/callback", process.env.BASE_URL?.trim() || request.nextUrl.origin).toString();
     const authorize = new URL("https://www.instagram.com/oauth/authorize");
     authorize.searchParams.set("client_id", appId);
@@ -38,7 +32,7 @@ export async function GET(request: NextRequest) {
     authorize.searchParams.set("scope", OAUTH_SCOPES.join(","));
     authorize.searchParams.set("state", state);
     const response = NextResponse.redirect(authorize);
-    response.cookies.set(STATE_COOKIE, state, { httpOnly: true, secure: request.nextUrl.protocol === "https:", sameSite: "lax", path: "/api/instagram/oauth/callback", maxAge: STATE_MAX_AGE });
+    response.cookies.set(STATE_COOKIE, state, { httpOnly: true, secure: process.env.NODE_ENV === "production" || request.nextUrl.protocol === "https:", sameSite: "lax", path: "/api/instagram/oauth/callback", maxAge: STATE_MAX_AGE });
     response.headers.set("Cache-Control", "no-store");
     response.headers.set("Referrer-Policy", "no-referrer");
     return response;

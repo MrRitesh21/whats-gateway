@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { matchesChannelRule } from "@/lib/channel-automation";
+import { findMatchingChannelKeyword } from "@/lib/channel-automation";
 import { decryptInstagramToken } from "@/lib/instagram-token-crypto";
 import {
   findInstagramKeyword,
@@ -74,10 +74,10 @@ export async function POST(request: NextRequest) {
 async function captureAndReply(value: ReturnType<typeof parseInstagramCommentEvents>[number], config: InstagramWebhookConfig, account: { userId: string | null; accessToken: string }) {
   const { commentId, commentText, instagramAccountId } = value;
   const rules = await prisma.channelAutoReplyRule.findMany({ where: { channel: "INSTAGRAM", userId: account.userId }, orderBy: { createdAt: "asc" } });
-  const matchingRule = rules.find((rule) => rule.isActive && matchesChannelRule(commentText, rule));
-  // Keep the original environment-based rule as a compatibility fallback until an
-  // operator creates rules in the unified automation screen.
-  const matchedKeyword = matchingRule?.keyword || (account.userId === null && rules.length === 0 ? findInstagramKeyword(commentText, config.keywords) : null);
+  const matchingRule = rules.find((rule) => rule.isActive && findMatchingChannelKeyword(commentText, rule) !== null);
+  const matchedVariant = matchingRule ? findMatchingChannelKeyword(commentText, matchingRule) : null;
+  // Keep the original environment-based rule as a compatibility fallback only for its exact legacy account.
+  const matchedKeyword = matchedVariant || (account.userId === null && rules.length === 0 ? findInstagramKeyword(commentText, config.keywords) : null);
   let isNew = true;
 
   // Claim the unique comment ID durably before making the external API call. Meta

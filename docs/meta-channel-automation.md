@@ -2,15 +2,15 @@
 
 The dashboard has channel switches for the existing WhatsApp linked-device (Baileys) rules, Instagram comment replies, and WhatsApp Official Cloud API rules. The linked-device path is unchanged. Instagram uses per-user OAuth connections; WhatsApp Cloud rules remain platform-admin managed.
 
-## Enable the database models
+## Apply the database migration
 
-Back up the database, then apply the Prisma schema:
+Back up the database and verify `DATABASE_URL` points to the intended environment. This repository includes `prisma/migrations/20261021120000_instagram_channel_automation/migration.sql`, an additive migration for the Instagram connection/comment ledger, channel rules, and WhatsApp Cloud event ledger. On installations using Prisma Migrate, apply it with:
 
 ```bash
-npm run db:push
+npx prisma migrate deploy
 ```
 
-This adds channel rules, Instagram OAuth account connections, and the WhatsApp Cloud inbound deduplication ledger. Apply this before deploying application routes that use these models.
+For databases historically managed only with `db push`, keep that workflow consistent (`npm run db:push`) rather than mixing migration histories without baselining. The migration is designed to tolerate previously `db push`-created feature tables/indexes, but still inspect the migration and back up first. Apply the database change before deploying code that queries those tables. See [Instagram Comment-to-DM setup](./instagram-comment-dm.md) for the full Meta configuration and production checklist.
 
 ## Shared Meta settings
 
