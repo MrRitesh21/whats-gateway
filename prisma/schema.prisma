@@ -72,6 +72,8 @@ model User {
   sessionAccesses SessionAccess[]
   payments  Payment[]
   apiUsages ApiUsage[]
+  instagramConnection InstagramAccountConnection?
+  channelAutoReplyRules ChannelAutoReplyRule[]
 }
 
 model Session {
@@ -486,10 +488,10 @@ model InstagramCommentEvent {
   @@index([status, receivedAt])
 }
 
-// Platform-level rules for Meta channels configured by the deployment owner.
-// Credentials are deployment-wide environment variables, not tenant settings.
+// Instagram automation rules are tenant-scoped; WhatsApp Cloud API rules are platform-admin managed.
 model ChannelAutoReplyRule {
   id        String   @id @default(cuid())
+  userId    String?  // Required for Instagram; null only for platform WhatsApp Cloud API rules.
   channel   String   // INSTAGRAM | WHATSAPP_CLOUD
   keyword   String
   matchType String   @default("CONTAINS") // EXACT | CONTAINS | STARTS_WITH | REGEX
@@ -498,7 +500,26 @@ model ChannelAutoReplyRule {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([channel, isActive, createdAt])
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([channel, userId, isActive, createdAt])
+}
+
+model InstagramAccountConnection {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  instagramUserId     String   @unique
+  username            String
+  encryptedAccessToken String  @db.Text
+  tokenExpiresAt      DateTime
+  grantedScopes       String   @default("")
+  webhookSubscribed   Boolean  @default(false)
+  connectedAt         DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([instagramUserId])
 }
 
 // Deduplication ledger for official WhatsApp Cloud API inbound webhooks.

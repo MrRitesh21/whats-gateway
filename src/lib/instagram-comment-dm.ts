@@ -78,6 +78,35 @@ export function readInstagramConfig(): InstagramCommentConfig {
   };
 }
 
+export type InstagramWebhookConfig = {
+  appSecret: string;
+  verifyToken: string;
+  legacyAccountId: string | null;
+  legacyAccessToken: string | null;
+  keywords: string[];
+  dmMessage: string;
+  dmLink: string;
+  graphVersion: string;
+};
+
+/** Webhook verification must work for OAuth-connected accounts without deployment-wide tokens. */
+export function readInstagramWebhookConfig(): InstagramWebhookConfig {
+  const appSecret = requiredEnv("META_APP_SECRET");
+  const verifyToken = requiredEnv("META_WEBHOOK_VERIFY_TOKEN");
+  const graphVersion = process.env.META_GRAPH_API_VERSION?.trim() || "v25.0";
+  if (!/^v\d+\.\d+$/.test(graphVersion)) throw new Error("META_GRAPH_API_VERSION must look like v25.0");
+  return {
+    appSecret,
+    verifyToken,
+    legacyAccountId: process.env.INSTAGRAM_ACCOUNT_ID?.trim() || null,
+    legacyAccessToken: process.env.INSTAGRAM_ACCESS_TOKEN?.trim() || null,
+    keywords: (process.env.IG_COMMENT_KEYWORDS || "").split(",").map((keyword) => keyword.normalize("NFKC").trim()).filter(Boolean),
+    dmMessage: process.env.IG_DM_MESSAGE?.trim() || "",
+    dmLink: process.env.IG_DM_LINK?.trim() || "",
+    graphVersion,
+  };
+}
+
 export function constantTimeEqual(left: string, right: string): boolean {
   const leftBytes = Buffer.from(left, "utf8");
   const rightBytes = Buffer.from(right, "utf8");

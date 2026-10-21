@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { matchesChannelRule } from "@/lib/channel-automation";
+import { decryptInstagramToken } from "@/lib/instagram-token-crypto";
 import {
   findInstagramKeyword,
   parseInstagramCommentEvents,
-  readInstagramConfig,
+  readInstagramWebhookConfig,
   redactInstagramError,
   verifyInstagramWebhookSignature,
   constantTimeEqual,
+  type InstagramWebhookConfig,
 } from "@/lib/instagram-comment-dm";
 
 export const runtime = "nodejs";
@@ -33,12 +35,12 @@ export async function POST(request: NextRequest) {
   const rawBody = await request.text();
   if (Buffer.byteLength(rawBody, "utf8") > MAX_WEBHOOK_BYTES) return NextResponse.json({ error: "Payload too large" }, { status: 413 });
 
-  let config;
+  let config: InstagramWebhookConfig;
   try {
-    config = readInstagramConfig();
+    config = readInstagramWebhookConfig();
   } catch (error) {
     console.error("Instagram comment automation configuration error:", redactInstagramError(error instanceof Error ? error.message : "Unknown error"));
-    return NextResponse.json({ error: "Instagram comment automation is not configured" }, { status: 503 });
+    return NextResponse.json({ error: "Instagram webhook is not configured" }, { status: 503 });
   }
 
   if (!verifyInstagramWebhookSignature(rawBody, request.headers.get("x-hub-signature-256"), config.appSecret)) {
@@ -55,8 +57,11 @@ export async function POST(request: NextRequest) {
   const commentEvents = parseInstagramCommentEvents(payload);
   try {
     for (const event of commentEvents) {
-      if (event.instagramAccountId !== config.accountId) continue;
-      await captureAndReply(event, config);
+      const connection = await prisma.instagramAccountConnection.findUnique({ where: { instagramUserId: event.instagramAccountId } });
+      const legacyMatch = !connection && config.legacyAccountId === event.instagramAccountId && !!config.legacyAccessToken;
+      if (!connection && !legacyMatch) continue;
+      const accessToken = connection ? decryptInstagramToken(connection.encryptedAccessToken) : config.legacyAccessToken!;
+      await captureAndReply(event, config, { userId: connection?.userId ?? null, accessToken });
     }
   } catch (error) {
     console.error("Instagram comment webhook failed:", redactInstagramError(error instanceof Error ? error.message : "Unknown error"));
@@ -66,13 +71,13 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ received: true });
 }
 
-async function captureAndReply(value: ReturnType<typeof parseInstagramCommentEvents>[number], config: ReturnType<typeof readInstagramConfig>) {
-  const { commentId, commentText } = value;
-  const rules = await prisma.channelAutoReplyRule.findMany({ where: { channel: "INSTAGRAM" }, orderBy: { createdAt: "asc" } });
+async function captureAndReply(value: ReturnType<typeof parseInstagramCommentEvents>[number], config: InstagramWebhookConfig, account: { userId: string | null; accessToken: string }) {
+  const { commentId, commentText, instagramAccountId } = value;
+  const rules = await prisma.channelAutoReplyRule.findMany({ where: { channel: "INSTAGRAM", userId: account.userId }, orderBy: { createdAt: "asc" } });
   const matchingRule = rules.find((rule) => rule.isActive && matchesChannelRule(commentText, rule));
   // Keep the original environment-based rule as a compatibility fallback until an
   // operator creates rules in the unified automation screen.
-  const matchedKeyword = matchingRule?.keyword || (rules.length === 0 ? findInstagramKeyword(commentText, config.keywords) : null);
+  const matchedKeyword = matchingRule?.keyword || (account.userId === null && rules.length === 0 ? findInstagramKeyword(commentText, config.keywords) : null);
   let isNew = true;
 
   // Claim the unique comment ID durably before making the external API call. Meta
@@ -81,7 +86,7 @@ async function captureAndReply(value: ReturnType<typeof parseInstagramCommentEve
     await prisma.instagramCommentEvent.create({
       data: {
         commentId,
-        instagramAccountId: config.accountId,
+        instagramAccountId,
         username: value.username?.slice(0, 255) || null,
         commenterId: value.commenterId,
         commentText,
@@ -98,13 +103,13 @@ async function captureAndReply(value: ReturnType<typeof parseInstagramCommentEve
   if (!isNew || !matchedKeyword) return;
 
   try {
-    const replyText = matchingRule?.response || [config.dmMessage, config.dmLink].filter(Boolean).join("\n");
-    if (!replyText) throw new Error("Create an Instagram auto-reply rule or configure IG_DM_MESSAGE and IG_DM_LINK");
+    const replyText = matchingRule?.response || (account.userId === null ? [config.dmMessage, config.dmLink].filter(Boolean).join("\n") : "");
+    if (!replyText) throw new Error("Add an Instagram auto-reply rule before enabling private replies");
 
-    const response = await fetch(`https://graph.instagram.com/${config.graphVersion}/${encodeURIComponent(config.accountId)}/messages`, {
+    const response = await fetch(`https://graph.instagram.com/${config.graphVersion}/${encodeURIComponent(instagramAccountId)}/messages`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${config.accessToken}`,
+        Authorization: `Bearer ${account.accessToken}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ recipient: { comment_id: commentId }, message: { text: replyText } }),

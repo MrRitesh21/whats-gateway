@@ -7,10 +7,11 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   const user = await getAuthenticatedUser(request);
   if (!user) return NextResponse.json({ status: false, message: "Unauthorized" }, { status: 401 });
-  if (user.role !== "SUPERADMIN") return NextResponse.json({ status: false, message: "Forbidden" }, { status: 403 });
+  if (user.role === "STAFF") return NextResponse.json({ status: false, message: "Forbidden" }, { status: 403 });
 
-  const accountId = process.env.INSTAGRAM_ACCOUNT_ID?.trim();
-  if (!accountId) return NextResponse.json({ status: false, message: "Instagram account is not configured" }, { status: 503 });
+  const connection = await prisma.instagramAccountConnection.findUnique({ where: { userId: user.id }, select: { instagramUserId: true } });
+  const accountId = connection?.instagramUserId || (user.role === "SUPERADMIN" ? process.env.INSTAGRAM_ACCOUNT_ID?.trim() : null);
+  if (!accountId) return NextResponse.json({ status: false, message: "Connect an Instagram account first" }, { status: 503 });
 
   const events = await prisma.instagramCommentEvent.findMany({
     where: { instagramAccountId: accountId },

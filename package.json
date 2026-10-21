@@ -11,6 +11,7 @@
     "db:push": "prisma db push && prisma generate",
     "test:instagram": "tsx scripts/test-instagram-comment-dm.ts",
     "test:channels": "tsx scripts/test-channel-automation.ts",
+    "test:instagram:oauth": "tsx scripts/test-instagram-oauth.ts",
     "db:studio": "prisma studio",
     "make-admin": "node scripts/setup-admin.js",
     "postinstall": "patch-package",
