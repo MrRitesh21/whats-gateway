@@ -80,7 +80,7 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/components/dashboard/session-provider";
 import type { Lead, LeadStage, LeadPriority, LeadActivity, WhatsAppSyncResult } from "@/lib/crm/types";
-import { THEME_CONFIGS } from "@/lib/sites/presets";
+import { THEME_CONFIGS, matchCategoryPreset } from "@/lib/sites/presets";
 import type { SiteThemeColor } from "@/lib/sites/types";
 
 const STAGES: { id: LeadStage; name: string; color: string; bg: string }[] = [
@@ -242,10 +242,11 @@ export default function CRMPage() {
     const openWebsiteGenerator = (lead: Lead) => {
         setWebsiteTargetLead(lead);
         setSiteBusinessName(lead.name || "");
-        setSiteCategory(lead.category || "General Business & Retail");
+        const detected = matchCategoryPreset(lead.category, lead.name);
+        setSiteCategory(lead.category || detected.label);
         setSiteCity(lead.city || "");
         setSitePhone(lead.formattedPhone || lead.phone || "");
-        setSiteTheme("emerald");
+        setSiteTheme(detected.defaultTheme || "emerald");
         setSiteHeadline("");
         setGeneratedResult(null);
         setCopiedLink(false);
@@ -2412,7 +2413,16 @@ export default function CRMPage() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div className="space-y-1.5">
                                     <Label className="text-xs font-semibold">Industry / Category</Label>
-                                    <Select value={siteCategory} onValueChange={setSiteCategory}>
+                                    <Select
+                                        value={siteCategory}
+                                        onValueChange={(val) => {
+                                            setSiteCategory(val);
+                                            const detected = matchCategoryPreset(val, siteBusinessName);
+                                            if (detected?.defaultTheme) {
+                                                setSiteTheme(detected.defaultTheme);
+                                            }
+                                        }}
+                                    >
                                         <SelectTrigger className="h-9 text-xs">
                                             <SelectValue />
                                         </SelectTrigger>

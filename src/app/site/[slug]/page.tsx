@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import {
     Phone,
     MessageSquare,
@@ -17,7 +17,6 @@ import {
     Zap,
     Building2,
     Send,
-    ExternalLink,
     ChevronRight,
     Loader2,
     AlertCircle,
@@ -29,13 +28,99 @@ import {
     Home,
     Info,
     Layers,
-    MessageCircle,
     Check,
 } from "lucide-react";
-import type { GeneratedSite, SiteService } from "@/lib/sites/types";
-import { THEME_CONFIGS } from "@/lib/sites/presets";
+import type { GeneratedSite, SiteService, SiteThemeColor } from "@/lib/sites/types";
 
 type ActivePage = "home" | "about" | "services" | "reviews" | "contact";
+
+interface ThemePalette {
+    primary: string;
+    primaryDark: string;
+    light: string;
+    border: string;
+    text: string;
+    gradient: string;
+    badgeBg: string;
+    badgeText: string;
+    badgeBorder: string;
+    shadowGlow: string;
+}
+
+const THEME_PALETTES: Record<SiteThemeColor, ThemePalette> = {
+    emerald: {
+        primary: "#059669",
+        primaryDark: "#047857",
+        light: "#ecfdf5",
+        border: "#a7f3d0",
+        text: "#065f46",
+        gradient: "linear-gradient(135deg, #059669 0%, #0d9488 100%)",
+        badgeBg: "bg-emerald-50",
+        badgeText: "text-emerald-800",
+        badgeBorder: "border-emerald-200",
+        shadowGlow: "rgba(5, 150, 105, 0.25)",
+    },
+    sapphire: {
+        primary: "#2563EB",
+        primaryDark: "#1d4ed8",
+        light: "#eff6ff",
+        border: "#bfdbfe",
+        text: "#1e40af",
+        gradient: "linear-gradient(135deg, #2563EB 0%, #4f46e5 100%)",
+        badgeBg: "bg-blue-50",
+        badgeText: "text-blue-800",
+        badgeBorder: "border-blue-200",
+        shadowGlow: "rgba(37, 99, 235, 0.25)",
+    },
+    gold: {
+        primary: "#D97706",
+        primaryDark: "#b45309",
+        light: "#fffbeb",
+        border: "#fde68a",
+        text: "#92400e",
+        gradient: "linear-gradient(135deg, #D97706 0%, #ea580c 100%)",
+        badgeBg: "bg-amber-50",
+        badgeText: "text-amber-900",
+        badgeBorder: "border-amber-200",
+        shadowGlow: "rgba(217, 119, 6, 0.25)",
+    },
+    crimson: {
+        primary: "#E11D48",
+        primaryDark: "#be123c",
+        light: "#fff1f2",
+        border: "#fecdd3",
+        text: "#9f1239",
+        gradient: "linear-gradient(135deg, #E11D48 0%, #dc2626 100%)",
+        badgeBg: "bg-rose-50",
+        badgeText: "text-rose-900",
+        badgeBorder: "border-rose-200",
+        shadowGlow: "rgba(225, 29, 72, 0.25)",
+    },
+    violet: {
+        primary: "#7C3AED",
+        primaryDark: "#6d28d9",
+        light: "#f5f3ff",
+        border: "#ddd6fe",
+        text: "#5b21b6",
+        gradient: "linear-gradient(135deg, #7C3AED 0%, #6366f1 100%)",
+        badgeBg: "bg-purple-50",
+        badgeText: "text-purple-900",
+        badgeBorder: "border-purple-200",
+        shadowGlow: "rgba(124, 58, 237, 0.25)",
+    },
+    teal: {
+        primary: "#0D9488",
+        primaryDark: "#0f766e",
+        light: "#f0fdfa",
+        border: "#99f6e4",
+        text: "#115e59",
+        gradient: "linear-gradient(135deg, #0D9488 0%, #0891b2 100%)",
+        badgeBg: "bg-teal-50",
+        badgeText: "text-teal-900",
+        badgeBorder: "border-teal-200",
+        shadowGlow: "rgba(13, 148, 136, 0.25)",
+    },
+};
 
 function renderIcon(iconName?: string, className: string = "h-5 w-5") {
     switch (iconName) {
@@ -104,7 +189,7 @@ export default function PublicSitePage() {
     if (loading) {
         return (
             <div className="min-h-screen bg-white flex flex-col items-center justify-center text-slate-800 p-4">
-                <Loader2 className="h-10 w-10 animate-spin text-emerald-600 mb-3" />
+                <Loader2 className="h-10 w-10 animate-spin text-slate-700 mb-3" />
                 <p className="text-sm font-semibold tracking-wide text-slate-500">Loading website preview...</p>
             </div>
         );
@@ -124,7 +209,7 @@ export default function PublicSitePage() {
         );
     }
 
-    const theme = THEME_CONFIGS[site.themeColor] || THEME_CONFIGS.emerald;
+    const theme = THEME_PALETTES[site.themeColor] || THEME_PALETTES.emerald;
     const phoneClean = site.whatsappPhone.replace(/\D/g, "");
     const waBaseUrl = `https://wa.me/${phoneClean}?text=${encodeURIComponent(site.whatsappGreeting)}`;
     const telUrl = `tel:${site.phone}`;
@@ -144,24 +229,81 @@ export default function PublicSitePage() {
     ];
 
     return (
-        <div className="min-h-screen bg-white text-slate-900 font-sans selection:bg-emerald-500 selection:text-white pb-20 md:pb-0">
-            {/* Top Info Notification Bar */}
-            <div className="bg-slate-100/90 border-b border-slate-200/80 text-[11px] py-2 px-4 text-slate-600">
+        <div
+            className="min-h-screen bg-white text-slate-900 font-sans selection:bg-slate-800 selection:text-white pb-20 md:pb-0 relative overflow-x-hidden"
+            style={{
+                "--theme-primary": theme.primary,
+                "--theme-primary-dark": theme.primaryDark,
+                "--theme-light": theme.light,
+                "--theme-border": theme.border,
+                "--theme-text": theme.text,
+            } as React.CSSProperties}
+        >
+            {/* Inline CSS Keyframe Animations */}
+            <style jsx global>{`
+                @keyframes pageFadeIn {
+                    from {
+                        opacity: 0;
+                        transform: translateY(12px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
+                }
+                @keyframes floatSlow {
+                    0%, 100% {
+                        transform: translateY(0px) rotate(0deg);
+                    }
+                    50% {
+                        transform: translateY(-10px) rotate(1.5deg);
+                    }
+                }
+                @keyframes pulseSoft {
+                    0%, 100% {
+                        transform: scale(1);
+                        opacity: 1;
+                    }
+                    50% {
+                        transform: scale(1.04);
+                        opacity: 0.9;
+                    }
+                }
+                .animate-page-enter {
+                    animation: pageFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+                }
+                .animate-float-slow {
+                    animation: floatSlow 7s ease-in-out infinite;
+                }
+                .animate-pulse-soft {
+                    animation: pulseSoft 3s ease-in-out infinite;
+                }
+                .hover-card-elevate {
+                    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+                }
+                .hover-card-elevate:hover {
+                    transform: translateY(-5px);
+                    box-shadow: 0 16px 32px -8px rgba(0, 0, 0, 0.08), 0 4px 12px -2px rgba(0, 0, 0, 0.04);
+                }
+            `}</style>
+
+            {/* Top Notification Bar */}
+            <div className="bg-slate-50 border-b border-slate-200/80 text-[11px] py-2 px-4 text-slate-600">
                 <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 truncate">
-                        <MapPin className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                        <MapPin className="h-3.5 w-3.5 shrink-0" style={{ color: theme.primary }} />
                         <span className="truncate font-medium">{site.address || (site.city ? `${site.city}, India` : "Verified Business")}</span>
                     </div>
                     <div className="flex items-center gap-5 shrink-0">
                         <span className="hidden sm:flex items-center gap-1 text-slate-600">
-                            <Clock className="h-3.5 w-3.5 text-emerald-600" />
+                            <Clock className="h-3.5 w-3.5" style={{ color: theme.primary }} />
                             <span>Mon - Sat: 9:00 AM - 8:00 PM</span>
                         </span>
                         <a
                             href={telUrl}
-                            className="flex items-center gap-1 font-semibold text-slate-800 hover:text-emerald-600 font-mono transition-colors"
+                            className="flex items-center gap-1 font-semibold text-slate-800 hover:opacity-80 font-mono transition-opacity"
                         >
-                            <Phone className="h-3 w-3 text-emerald-600" />
+                            <Phone className="h-3 w-3" style={{ color: theme.primary }} />
                             <span>{site.phone}</span>
                         </a>
                     </div>
@@ -177,21 +319,24 @@ export default function PublicSitePage() {
                         onClick={() => navigateTo("home")}
                         className="flex items-center gap-2.5 text-left group cursor-pointer"
                     >
-                        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 flex items-center justify-center font-bold text-white shadow-md shadow-emerald-600/20 text-base group-hover:scale-105 transition-transform">
+                        <div
+                            className="h-10 w-10 rounded-xl flex items-center justify-center font-bold text-white text-base shadow-md group-hover:scale-105 transition-transform"
+                            style={{ background: theme.gradient, boxShadow: `0 4px 14px 0 ${theme.shadowGlow}` }}
+                        >
                             {site.businessName.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                            <h1 className="font-extrabold text-sm sm:text-base leading-tight tracking-tight text-slate-900 line-clamp-1 group-hover:text-emerald-700 transition-colors">
+                            <h1 className="font-extrabold text-sm sm:text-base leading-tight tracking-tight text-slate-900 line-clamp-1 group-hover:opacity-90 transition-opacity">
                                 {site.businessName}
                             </h1>
-                            <p className="text-[10px] text-emerald-700 font-semibold tracking-wide">
+                            <p className="text-[10px] font-semibold tracking-wide" style={{ color: theme.primary }}>
                                 {site.category}
                             </p>
                         </div>
                     </button>
 
                     {/* Desktop 5-Page Navigation Tabs */}
-                    <nav className="hidden md:flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/80">
+                    <nav className="hidden md:flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200">
                         {navItems.map((item) => {
                             const isCurrent = activePage === item.id;
                             const IconComponent = item.icon;
@@ -200,13 +345,18 @@ export default function PublicSitePage() {
                                     key={item.id}
                                     type="button"
                                     onClick={() => navigateTo(item.id)}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                                    className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
                                         isCurrent
-                                            ? "bg-white text-emerald-700 shadow-xs border border-slate-200/60"
+                                            ? "shadow-xs border text-white font-bold"
                                             : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/50"
                                     }`}
+                                    style={isCurrent ? {
+                                        background: theme.gradient,
+                                        borderColor: theme.primary,
+                                        boxShadow: `0 2px 8px ${theme.shadowGlow}`
+                                    } : {}}
                                 >
-                                    <IconComponent className={`h-3.5 w-3.5 ${isCurrent ? "text-emerald-600" : "text-slate-400"}`} />
+                                    <IconComponent className="h-3.5 w-3.5" />
                                     <span>{item.label}</span>
                                 </button>
                             );
@@ -217,7 +367,7 @@ export default function PublicSitePage() {
                     <div className="flex items-center gap-2">
                         <a
                             href={telUrl}
-                            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 transition-colors shadow-xs"
+                            className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 transition-colors shadow-xs"
                         >
                             <Phone className="h-3.5 w-3.5 text-slate-500" />
                             <span>Call</span>
@@ -226,7 +376,8 @@ export default function PublicSitePage() {
                             href={waBaseUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all hover:scale-105 active:scale-95"
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-white text-xs font-bold shadow-md transition-all hover:scale-105 active:scale-95"
+                            style={{ background: theme.gradient, boxShadow: `0 4px 14px 0 ${theme.shadowGlow}` }}
                         >
                             <MessageSquare className="h-3.5 w-3.5" />
                             <span>WhatsApp</span>
@@ -235,7 +386,7 @@ export default function PublicSitePage() {
                 </div>
 
                 {/* Mobile Scrollable Page Navigation Bar */}
-                <div className="md:hidden flex items-center gap-1 overflow-x-auto pt-2.5 pb-0.5 border-t border-slate-100 mt-2.5 styled-scrollbar">
+                <div className="md:hidden flex items-center gap-1.5 overflow-x-auto pt-2.5 pb-0.5 border-t border-slate-100 mt-2.5 styled-scrollbar">
                     {navItems.map((item) => {
                         const isCurrent = activePage === item.id;
                         return (
@@ -243,11 +394,10 @@ export default function PublicSitePage() {
                                 key={item.id}
                                 type="button"
                                 onClick={() => navigateTo(item.id)}
-                                className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
-                                    isCurrent
-                                        ? "bg-emerald-600 text-white shadow-xs"
-                                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                className={`px-3.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
+                                    isCurrent ? "text-white shadow-xs font-bold" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                                 }`}
+                                style={isCurrent ? { background: theme.gradient } : {}}
                             >
                                 {item.label}
                             </button>
@@ -260,13 +410,31 @@ export default function PublicSitePage() {
                 PAGE 1: HOME PAGE
             ══════════════════════════════════════════════════════════════════════ */}
             {activePage === "home" && (
-                <main className="space-y-12">
+                <main key="home" className="space-y-12 animate-page-enter">
                     {/* Hero Section */}
-                    <section className="relative overflow-hidden py-14 sm:py-20 px-4 bg-gradient-to-b from-emerald-50/70 via-teal-50/30 to-white border-b border-slate-100">
+                    <section
+                        className="relative overflow-hidden py-14 sm:py-20 px-4 border-b border-slate-100"
+                        style={{
+                            background: `linear-gradient(180deg, ${theme.light} 0%, rgba(255,255,255,0.85) 60%, #ffffff 100%)`
+                        }}
+                    >
+                        {/* Animated Floating Background Ambient Shapes */}
+                        <div
+                            className="absolute -top-12 -left-12 w-64 h-64 rounded-full opacity-35 blur-3xl animate-float-slow pointer-events-none"
+                            style={{ backgroundColor: theme.primary }}
+                        />
+                        <div
+                            className="absolute -bottom-12 -right-12 w-72 h-72 rounded-full opacity-25 blur-3xl animate-float-slow pointer-events-none"
+                            style={{ backgroundColor: theme.primaryDark, animationDelay: "2.5s" }}
+                        />
+
                         <div className="max-w-4xl mx-auto text-center space-y-6 relative z-10">
                             {/* Live Badge */}
-                            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-emerald-200 bg-white text-emerald-800 text-xs font-bold shadow-xs">
-                                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                            <div
+                                className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border text-xs font-bold shadow-xs bg-white/90 backdrop-blur-sm animate-pulse-soft"
+                                style={{ borderColor: theme.border, color: theme.text }}
+                            >
+                                <span className="h-2 w-2 rounded-full animate-pulse" style={{ backgroundColor: theme.primary }} />
                                 <span>Verified {site.category} {site.city ? `• ${site.city}` : ""}</span>
                             </div>
 
@@ -285,36 +453,37 @@ export default function PublicSitePage() {
                                 <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-3.5 py-1.5 rounded-full shadow-xs">
                                     <div className="flex text-amber-500">
                                         {[...Array(5)].map((_, i) => (
-                                            <Star key={i} className="h-3 w-3 fill-amber-500" />
+                                            <Star key={i} className="h-3.5 w-3.5 fill-amber-500" />
                                         ))}
                                     </div>
                                     <span className="font-extrabold text-slate-900">4.9 / 5</span>
                                     <span className="text-slate-500">({site.stats.reviewsCount}+ Reviews)</span>
                                 </div>
                                 <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-3.5 py-1.5 rounded-full shadow-xs font-semibold text-slate-800">
-                                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                                    <ShieldCheck className="h-3.5 w-3.5" style={{ color: theme.primary }} />
                                     <span>100% Certified Standards</span>
                                 </div>
                                 <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-3.5 py-1.5 rounded-full shadow-xs font-semibold text-slate-800">
-                                    <Zap className="h-3.5 w-3.5 text-amber-600" />
+                                    <Zap className="h-3.5 w-3.5" style={{ color: theme.primary }} />
                                     <span>Instant WhatsApp Booking</span>
                                 </div>
                             </div>
 
                             {/* Call to Action Buttons */}
-                            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-3">
+                            <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 pt-3">
                                 <a
                                     href={waBaseUrl}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold shadow-lg shadow-emerald-600/25 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl text-white text-sm font-bold shadow-lg transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                                    style={{ background: theme.gradient, boxShadow: `0 8px 24px 0 ${theme.shadowGlow}` }}
                                 >
                                     <MessageSquare className="h-4 w-4" />
                                     <span>Book Consultation on WhatsApp</span>
                                 </a>
                                 <a
                                     href={telUrl}
-                                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 text-sm font-bold shadow-xs transition-all hover:scale-105 active:scale-95"
+                                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 text-sm font-bold shadow-xs transition-all hover:scale-105 active:scale-95"
                                 >
                                     <Phone className="h-4 w-4 text-slate-600" />
                                     <span>Call {site.phone}</span>
@@ -325,9 +494,15 @@ export default function PublicSitePage() {
 
                     {/* About Us Teaser Section */}
                     <section className="px-4 max-w-6xl mx-auto">
-                        <div className="bg-slate-50 border border-slate-200 rounded-3xl p-6 sm:p-10 grid md:grid-cols-2 gap-8 items-center">
+                        <div
+                            className="border rounded-3xl p-6 sm:p-10 grid md:grid-cols-2 gap-8 items-center"
+                            style={{ backgroundColor: "#fafbfc", borderColor: theme.border }}
+                        >
                             <div className="space-y-4">
-                                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 uppercase tracking-wider bg-emerald-100/60 px-3 py-1 rounded-full">
+                                <span
+                                    className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3.5 py-1 rounded-full border"
+                                    style={{ backgroundColor: theme.light, color: theme.text, borderColor: theme.border }}
+                                >
                                     <Sparkles className="h-3.5 w-3.5" />
                                     <span>About {site.businessName}</span>
                                 </span>
@@ -340,7 +515,8 @@ export default function PublicSitePage() {
                                 <button
                                     type="button"
                                     onClick={() => navigateTo("about")}
-                                    className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800 hover:underline pt-2 cursor-pointer"
+                                    className="inline-flex items-center gap-1.5 text-xs font-bold hover:underline pt-2 cursor-pointer"
+                                    style={{ color: theme.primary }}
                                 >
                                     <span>Read Full Story &amp; Certifications</span>
                                     <ArrowRight className="h-3.5 w-3.5" />
@@ -354,7 +530,10 @@ export default function PublicSitePage() {
                                 <div className="space-y-3">
                                     {site.about.highlights.map((h, i) => (
                                         <div key={i} className="flex items-start gap-3 text-xs font-semibold text-slate-800">
-                                            <div className="h-5 w-5 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5">
+                                            <div
+                                                className="h-5 w-5 rounded-full flex items-center justify-center shrink-0 mt-0.5"
+                                                style={{ backgroundColor: theme.light, color: theme.primary }}
+                                            >
                                                 <Check className="h-3.5 w-3.5" />
                                             </div>
                                             <span>{h}</span>
@@ -369,7 +548,7 @@ export default function PublicSitePage() {
                     <section className="px-4 max-w-6xl mx-auto space-y-6">
                         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
                             <div className="space-y-1.5">
-                                <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">
+                                <span className="text-xs font-bold uppercase tracking-wider" style={{ color: theme.primary }}>
                                     Specialized Solutions
                                 </span>
                                 <h3 className="text-2xl sm:text-3xl font-black text-slate-900">
@@ -379,7 +558,8 @@ export default function PublicSitePage() {
                             <button
                                 type="button"
                                 onClick={() => navigateTo("services")}
-                                className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 hover:underline self-start sm:self-auto cursor-pointer"
+                                className="inline-flex items-center gap-1 text-xs font-bold hover:underline self-start sm:self-auto cursor-pointer"
+                                style={{ color: theme.primary }}
                             >
                                 <span>Explore All Services</span>
                                 <ChevronRight className="h-4 w-4" />
@@ -390,19 +570,25 @@ export default function PublicSitePage() {
                             {site.services.slice(0, 3).map((service: SiteService) => (
                                 <div
                                     key={service.id}
-                                    className="bg-white border border-slate-200/80 rounded-2xl p-6 space-y-3.5 shadow-xs hover:shadow-md transition-all hover:translate-y-[-2px] group"
+                                    className="bg-white border border-slate-200/90 rounded-2xl p-6 space-y-3.5 shadow-xs hover-card-elevate group"
                                 >
                                     <div className="flex items-center justify-between">
-                                        <div className="h-11 w-11 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                        <div
+                                            className="h-11 w-11 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform"
+                                            style={{ backgroundColor: theme.light, color: theme.primary }}
+                                        >
                                             {renderIcon(service.icon, "h-5 w-5")}
                                         </div>
                                         {service.tag && (
-                                            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                            <span
+                                                className="text-[10px] font-bold px-2.5 py-0.5 rounded-full border"
+                                                style={{ backgroundColor: theme.light, color: theme.text, borderColor: theme.border }}
+                                            >
                                                 {service.tag}
                                             </span>
                                         )}
                                     </div>
-                                    <h4 className="font-bold text-base text-slate-900 group-hover:text-emerald-700 transition-colors">
+                                    <h4 className="font-bold text-base text-slate-900 group-hover:opacity-90 transition-opacity">
                                         {service.title}
                                     </h4>
                                     <p className="text-xs text-slate-500 leading-relaxed">
@@ -412,7 +598,8 @@ export default function PublicSitePage() {
                                         href={`https://wa.me/${phoneClean}?text=${encodeURIComponent(`Hello ${site.businessName}, I would like to inquire about "${service.title}".`)}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800 pt-1"
+                                        className="inline-flex items-center gap-1.5 text-xs font-bold pt-1 hover:underline"
+                                        style={{ color: theme.primary }}
                                     >
                                         <span>Book Appointment</span>
                                         <ChevronRight className="h-3.5 w-3.5" />
@@ -436,8 +623,11 @@ export default function PublicSitePage() {
 
                             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
                                 {site.features.map((feat) => (
-                                    <div key={feat.id} className="bg-white border border-slate-200 rounded-2xl p-5 text-center space-y-2.5 shadow-xs">
-                                        <div className="h-10 w-10 rounded-full bg-emerald-50 text-emerald-600 mx-auto flex items-center justify-center">
+                                    <div key={feat.id} className="bg-white border border-slate-200 rounded-2xl p-5 text-center space-y-2.5 shadow-xs hover-card-elevate">
+                                        <div
+                                            className="h-10 w-10 rounded-full mx-auto flex items-center justify-center"
+                                            style={{ backgroundColor: theme.light, color: theme.primary }}
+                                        >
                                             {renderIcon(feat.icon, "h-5 w-5")}
                                         </div>
                                         <h4 className="font-bold text-xs sm:text-sm text-slate-900">{feat.title}</h4>
@@ -453,14 +643,15 @@ export default function PublicSitePage() {
                         <div className="flex items-center justify-between">
                             <div className="space-y-1">
                                 <span className="text-xs font-bold text-amber-600 uppercase tracking-wider flex items-center gap-1">
-                                    <Star className="h-3.5 w-3.5 fill-amber-500" /> Client Feedback
+                                    <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" /> Client Feedback
                                 </span>
                                 <h3 className="text-2xl font-black text-slate-900">What Our Clients Say</h3>
                             </div>
                             <button
                                 type="button"
                                 onClick={() => navigateTo("reviews")}
-                                className="text-xs font-bold text-emerald-700 hover:underline cursor-pointer"
+                                className="text-xs font-bold hover:underline cursor-pointer"
+                                style={{ color: theme.primary }}
                             >
                                 Read All Reviews →
                             </button>
@@ -468,17 +659,20 @@ export default function PublicSitePage() {
 
                         <div className="grid sm:grid-cols-3 gap-4">
                             {site.testimonials.map((t) => (
-                                <div key={t.id} className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3 shadow-xs">
+                                <div key={t.id} className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3 shadow-xs hover-card-elevate">
                                     <div className="flex text-amber-500">
                                         {[...Array(5)].map((_, i) => (
-                                            <Star key={i} className="h-3 w-3 fill-amber-500" />
+                                            <Star key={i} className="h-3.5 w-3.5 fill-amber-500" />
                                         ))}
                                     </div>
                                     <p className="text-xs text-slate-600 italic leading-relaxed">
                                         &ldquo;{t.comment}&rdquo;
                                     </p>
                                     <div className="pt-2 border-t border-slate-100 flex items-center gap-2">
-                                        <div className="h-7 w-7 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center">
+                                        <div
+                                            className="h-7 w-7 rounded-full font-bold text-xs flex items-center justify-center"
+                                            style={{ backgroundColor: theme.light, color: theme.primary }}
+                                        >
                                             {t.name.charAt(0)}
                                         </div>
                                         <div>
@@ -497,9 +691,12 @@ export default function PublicSitePage() {
                 PAGE 2: ABOUT US PAGE
             ══════════════════════════════════════════════════════════════════════ */}
             {activePage === "about" && (
-                <main className="max-w-5xl mx-auto px-4 py-10 space-y-12">
+                <main key="about" className="max-w-5xl mx-auto px-4 py-10 space-y-12 animate-page-enter">
                     <div className="text-center max-w-2xl mx-auto space-y-3">
-                        <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 uppercase tracking-wider bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                        <span
+                            className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-3.5 py-1 rounded-full border"
+                            style={{ backgroundColor: theme.light, color: theme.text, borderColor: theme.border }}
+                        >
                             <Info className="h-3.5 w-3.5" />
                             <span>About Our Business</span>
                         </span>
@@ -512,7 +709,10 @@ export default function PublicSitePage() {
                     </div>
 
                     {/* Detailed Story Card */}
-                    <div className="bg-slate-50 border border-slate-200 rounded-3xl p-6 sm:p-10 space-y-6">
+                    <div
+                        className="border rounded-3xl p-6 sm:p-10 space-y-6"
+                        style={{ backgroundColor: "#fafbfc", borderColor: theme.border }}
+                    >
                         <div className="space-y-3">
                             <h3 className="text-xl sm:text-2xl font-bold text-slate-900">
                                 {site.about.title}
@@ -527,29 +727,41 @@ export default function PublicSitePage() {
 
                         {/* 4 Pillars of Excellence */}
                         <div className="grid sm:grid-cols-2 gap-4 pt-4 border-t border-slate-200">
-                            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-1.5">
-                                <div className="h-8 w-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-1.5 hover-card-elevate">
+                                <div
+                                    className="h-8 w-8 rounded-lg flex items-center justify-center"
+                                    style={{ backgroundColor: theme.light, color: theme.primary }}
+                                >
                                     <ShieldCheck className="h-4 w-4" />
                                 </div>
                                 <h4 className="font-bold text-xs text-slate-900">Uncompromising Hygiene</h4>
-                                <p className="text-[11px] text-slate-500 leading-relaxed">Multi-tier sterilization and hygienic protocols meeting international healthcare guidelines.</p>
+                                <p className="text-[11px] text-slate-500 leading-relaxed">Multi-tier sterilization and hygienic protocols meeting international guidelines.</p>
                             </div>
-                            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-1.5">
-                                <div className="h-8 w-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-1.5 hover-card-elevate">
+                                <div
+                                    className="h-8 w-8 rounded-lg flex items-center justify-center"
+                                    style={{ backgroundColor: theme.light, color: theme.primary }}
+                                >
                                     <Users className="h-4 w-4" />
                                 </div>
                                 <h4 className="font-bold text-xs text-slate-900">Patient-First Philosophy</h4>
                                 <p className="text-[11px] text-slate-500 leading-relaxed">Attentive consultations where we listen to your concerns and explain options transparently.</p>
                             </div>
-                            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-1.5">
-                                <div className="h-8 w-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
+                            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-1.5 hover-card-elevate">
+                                <div
+                                    className="h-8 w-8 rounded-lg flex items-center justify-center"
+                                    style={{ backgroundColor: theme.light, color: theme.primary }}
+                                >
                                     <Award className="h-4 w-4" />
                                 </div>
                                 <h4 className="font-bold text-xs text-slate-900">Board Certified Staff</h4>
                                 <p className="text-[11px] text-slate-500 leading-relaxed">Continuous clinical upskilling and verified credentials ensuring reliable expertise.</p>
                             </div>
-                            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-1.5">
-                                <div className="h-8 w-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-1.5 hover-card-elevate">
+                                <div
+                                    className="h-8 w-8 rounded-lg flex items-center justify-center"
+                                    style={{ backgroundColor: theme.light, color: theme.primary }}
+                                >
                                     <Zap className="h-4 w-4" />
                                 </div>
                                 <h4 className="font-bold text-xs text-slate-900">Modern Technology</h4>
@@ -572,8 +784,8 @@ export default function PublicSitePage() {
                                 { step: "03", title: "Tailored Procedure", desc: "Gentle, pain-free treatment delivered with modern equipment and precision." },
                                 { step: "04", title: "Aftercare & Support", desc: "Ongoing follow-up instructions and WhatsApp support whenever you need advice." },
                             ].map((s) => (
-                                <div key={s.step} className="bg-white border border-slate-200 rounded-2xl p-5 space-y-2 shadow-xs">
-                                    <span className="text-2xl font-black text-emerald-600 font-mono block">{s.step}</span>
+                                <div key={s.step} className="bg-white border border-slate-200 rounded-2xl p-5 space-y-2 shadow-xs hover-card-elevate">
+                                    <span className="text-2xl font-black font-mono block" style={{ color: theme.primary }}>{s.step}</span>
                                     <h4 className="font-bold text-xs text-slate-900">{s.title}</h4>
                                     <p className="text-[11px] text-slate-500 leading-relaxed">{s.desc}</p>
                                 </div>
@@ -586,7 +798,8 @@ export default function PublicSitePage() {
                         <button
                             type="button"
                             onClick={() => navigateTo("contact")}
-                            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md cursor-pointer"
+                            className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl text-white text-xs font-bold shadow-md cursor-pointer hover:scale-105 active:scale-95 transition-all"
+                            style={{ background: theme.gradient, boxShadow: `0 8px 24px 0 ${theme.shadowGlow}` }}
                         >
                             <Calendar className="h-4 w-4" />
                             <span>Schedule an Appointment Today</span>
@@ -599,9 +812,12 @@ export default function PublicSitePage() {
                 PAGE 3: SERVICES CATALOG PAGE
             ══════════════════════════════════════════════════════════════════════ */}
             {activePage === "services" && (
-                <main className="max-w-6xl mx-auto px-4 py-10 space-y-10">
+                <main key="services" className="max-w-6xl mx-auto px-4 py-10 space-y-10 animate-page-enter">
                     <div className="text-center max-w-2xl mx-auto space-y-3">
-                        <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 uppercase tracking-wider bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                        <span
+                            className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-3.5 py-1 rounded-full border"
+                            style={{ backgroundColor: theme.light, color: theme.text, borderColor: theme.border }}
+                        >
                             <Layers className="h-3.5 w-3.5" />
                             <span>Complete Treatment &amp; Services</span>
                         </span>
@@ -617,20 +833,26 @@ export default function PublicSitePage() {
                         {site.services.map((service: SiteService) => (
                             <div
                                 key={service.id}
-                                className="bg-white border border-slate-200/90 rounded-2xl p-6 space-y-4 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group"
+                                className="bg-white border border-slate-200/90 rounded-2xl p-6 space-y-4 shadow-xs hover-card-elevate flex flex-col justify-between group"
                             >
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between">
-                                        <div className="h-12 w-12 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                        <div
+                                            className="h-12 w-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform"
+                                            style={{ backgroundColor: theme.light, color: theme.primary }}
+                                        >
                                             {renderIcon(service.icon, "h-6 w-6")}
                                         </div>
                                         {service.tag && (
-                                            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                            <span
+                                                className="text-[10px] font-bold px-2.5 py-0.5 rounded-full border"
+                                                style={{ backgroundColor: theme.light, color: theme.text, borderColor: theme.border }}
+                                            >
                                                 {service.tag}
                                             </span>
                                         )}
                                     </div>
-                                    <h4 className="font-extrabold text-base text-slate-900 group-hover:text-emerald-700 transition-colors">
+                                    <h4 className="font-extrabold text-base text-slate-900 group-hover:opacity-90 transition-opacity">
                                         {service.title}
                                     </h4>
                                     <p className="text-xs text-slate-500 leading-relaxed">
@@ -638,11 +860,11 @@ export default function PublicSitePage() {
                                     </p>
                                     <div className="space-y-1.5 pt-2 border-t border-slate-100">
                                         <div className="flex items-center gap-2 text-[11px] text-slate-600">
-                                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                                            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" style={{ color: theme.primary }} />
                                             <span>Certified Specialist Consultation</span>
                                         </div>
                                         <div className="flex items-center gap-2 text-[11px] text-slate-600">
-                                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                                            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" style={{ color: theme.primary }} />
                                             <span>Transparent Pricing &amp; No Hidden Fees</span>
                                         </div>
                                     </div>
@@ -652,7 +874,12 @@ export default function PublicSitePage() {
                                     href={`https://wa.me/${phoneClean}?text=${encodeURIComponent(`Hello ${site.businessName}, I would like to book an appointment for "${service.title}". Please share available slots.`)}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 text-xs font-bold transition-all"
+                                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border text-xs font-bold transition-all hover:scale-[1.02] active:scale-95"
+                                    style={{
+                                        backgroundColor: theme.light,
+                                        color: theme.primaryDark,
+                                        borderColor: theme.border
+                                    }}
                                 >
                                     <MessageSquare className="h-3.5 w-3.5" />
                                     <span>Inquire &amp; Book on WhatsApp</span>
@@ -664,7 +891,7 @@ export default function PublicSitePage() {
                     {/* FAQ Quick Banner */}
                     <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 sm:p-8 space-y-4">
                         <div className="flex items-center gap-2">
-                            <HelpCircle className="h-5 w-5 text-emerald-600" />
+                            <HelpCircle className="h-5 w-5" style={{ color: theme.primary }} />
                             <h3 className="font-bold text-base text-slate-900">Frequently Asked Questions</h3>
                         </div>
                         <div className="grid sm:grid-cols-2 gap-4 text-xs">
@@ -685,7 +912,7 @@ export default function PublicSitePage() {
                 PAGE 4: REVIEWS & TESTIMONIALS PAGE
             ══════════════════════════════════════════════════════════════════════ */}
             {activePage === "reviews" && (
-                <main className="max-w-5xl mx-auto px-4 py-10 space-y-10">
+                <main key="reviews" className="max-w-5xl mx-auto px-4 py-10 space-y-10 animate-page-enter">
                     <div className="text-center max-w-2xl mx-auto space-y-3">
                         <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 uppercase tracking-wider bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
                             <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
@@ -702,7 +929,7 @@ export default function PublicSitePage() {
                     {/* Overall Rating Score Card */}
                     <div className="bg-slate-50 border border-slate-200 rounded-3xl p-6 sm:p-8 grid md:grid-cols-3 gap-6 items-center text-center md:text-left">
                         <div className="space-y-2 text-center md:border-r border-slate-200 md:pr-6">
-                            <span className="text-5xl font-black text-slate-900 font-mono">4.9</span>
+                            <span className="text-5xl font-black font-mono" style={{ color: theme.primary }}>4.9</span>
                             <div className="flex justify-center text-amber-500">
                                 {[...Array(5)].map((_, i) => (
                                     <Star key={i} className="h-5 w-5 fill-amber-500" />
@@ -715,21 +942,21 @@ export default function PublicSitePage() {
                             <div className="flex items-center gap-3">
                                 <span className="font-semibold w-16 text-slate-700">5 Stars</span>
                                 <div className="flex-1 bg-slate-200 h-2.5 rounded-full overflow-hidden">
-                                    <div className="bg-amber-500 h-full w-[94%]" />
+                                    <div className="h-full w-[94%]" style={{ backgroundColor: theme.primary }} />
                                 </div>
                                 <span className="font-bold text-slate-700 w-10 text-right">94%</span>
                             </div>
                             <div className="flex items-center gap-3">
                                 <span className="font-semibold w-16 text-slate-700">4 Stars</span>
                                 <div className="flex-1 bg-slate-200 h-2.5 rounded-full overflow-hidden">
-                                    <div className="bg-amber-500 h-full w-[6%]" />
+                                    <div className="h-full w-[6%]" style={{ backgroundColor: theme.primary }} />
                                 </div>
                                 <span className="font-bold text-slate-700 w-10 text-right">6%</span>
                             </div>
                             <div className="flex items-center gap-3">
                                 <span className="font-semibold w-16 text-slate-700">3 Stars</span>
                                 <div className="flex-1 bg-slate-200 h-2.5 rounded-full overflow-hidden">
-                                    <div className="bg-amber-500 h-full w-[0%]" />
+                                    <div className="h-full w-[0%]" style={{ backgroundColor: theme.primary }} />
                                 </div>
                                 <span className="font-bold text-slate-700 w-10 text-right">0%</span>
                             </div>
@@ -739,7 +966,7 @@ export default function PublicSitePage() {
                     {/* Reviews Grid */}
                     <div className="grid sm:grid-cols-2 gap-5">
                         {site.testimonials.map((t) => (
-                            <div key={t.id} className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4 shadow-xs">
+                            <div key={t.id} className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4 shadow-xs hover-card-elevate">
                                 <div className="flex items-center justify-between">
                                     <div className="flex text-amber-500">
                                         {[...Array(5)].map((_, i) => (
@@ -752,7 +979,10 @@ export default function PublicSitePage() {
                                     &ldquo;{t.comment}&rdquo;
                                 </p>
                                 <div className="flex items-center gap-2.5 pt-2 border-t border-slate-100">
-                                    <div className="h-8 w-8 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center">
+                                    <div
+                                        className="h-8 w-8 rounded-full font-bold text-xs flex items-center justify-center"
+                                        style={{ backgroundColor: theme.light, color: theme.primary }}
+                                    >
                                         {t.name.charAt(0)}
                                     </div>
                                     <div>
@@ -765,7 +995,10 @@ export default function PublicSitePage() {
                     </div>
 
                     {/* Feedback Call to Action */}
-                    <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 text-center space-y-3">
+                    <div
+                        className="border rounded-2xl p-6 text-center space-y-3"
+                        style={{ backgroundColor: theme.light, borderColor: theme.border }}
+                    >
                         <h3 className="font-bold text-sm text-slate-900">Visited {site.businessName} recently?</h3>
                         <p className="text-xs text-slate-600 max-w-md mx-auto">
                             We value your feedback! Share your experience on WhatsApp to help us continue providing outstanding service.
@@ -774,7 +1007,8 @@ export default function PublicSitePage() {
                             href={`https://wa.me/${phoneClean}?text=${encodeURIComponent(`Hello ${site.businessName}, I would like to leave feedback regarding my recent visit.`)}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs"
+                            className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-white text-xs font-bold shadow-xs hover:scale-105 active:scale-95 transition-all"
+                            style={{ background: theme.gradient }}
                         >
                             <MessageSquare className="h-3.5 w-3.5" />
                             <span>Leave a Review on WhatsApp</span>
@@ -787,9 +1021,12 @@ export default function PublicSitePage() {
                 PAGE 5: CONTACT US & LOCATION PAGE
             ══════════════════════════════════════════════════════════════════════ */}
             {activePage === "contact" && (
-                <main className="max-w-5xl mx-auto px-4 py-10 space-y-10">
+                <main key="contact" className="max-w-5xl mx-auto px-4 py-10 space-y-10 animate-page-enter">
                     <div className="text-center max-w-2xl mx-auto space-y-3">
-                        <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 uppercase tracking-wider bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                        <span
+                            className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-3.5 py-1 rounded-full border"
+                            style={{ backgroundColor: theme.light, color: theme.text, borderColor: theme.border }}
+                        >
                             <Phone className="h-3.5 w-3.5" />
                             <span>Get in Touch</span>
                         </span>
@@ -803,12 +1040,18 @@ export default function PublicSitePage() {
 
                     <div className="grid md:grid-cols-2 gap-8">
                         {/* Address & Timings Card */}
-                        <div className="bg-slate-50 border border-slate-200 rounded-3xl p-6 sm:p-8 space-y-6">
+                        <div
+                            className="border rounded-3xl p-6 sm:p-8 space-y-6"
+                            style={{ backgroundColor: "#fafbfc", borderColor: theme.border }}
+                        >
                             <h3 className="font-bold text-lg text-slate-900">Clinic &amp; Office Details</h3>
 
                             <div className="space-y-5 text-xs">
                                 <div className="flex items-start gap-3.5">
-                                    <div className="h-8 w-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                                    <div
+                                        className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0"
+                                        style={{ backgroundColor: theme.light, color: theme.primary }}
+                                    >
                                         <MapPin className="h-4 w-4" />
                                     </div>
                                     <div>
@@ -820,7 +1063,10 @@ export default function PublicSitePage() {
                                 </div>
 
                                 <div className="flex items-start gap-3.5">
-                                    <div className="h-8 w-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                                    <div
+                                        className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0"
+                                        style={{ backgroundColor: theme.light, color: theme.primary }}
+                                    >
                                         <Clock className="h-4 w-4" />
                                     </div>
                                     <div>
@@ -839,12 +1085,15 @@ export default function PublicSitePage() {
                                 </div>
 
                                 <div className="flex items-start gap-3.5">
-                                    <div className="h-8 w-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                                    <div
+                                        className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0"
+                                        style={{ backgroundColor: theme.light, color: theme.primary }}
+                                    >
                                         <Phone className="h-4 w-4" />
                                     </div>
                                     <div>
                                         <span className="font-bold text-slate-900 block text-sm">Direct Hotline:</span>
-                                        <a href={telUrl} className="text-emerald-700 font-mono font-bold text-sm hover:underline">
+                                        <a href={telUrl} className="font-mono font-bold text-sm hover:underline" style={{ color: theme.primary }}>
                                             {site.phone}
                                         </a>
                                     </div>
@@ -856,7 +1105,8 @@ export default function PublicSitePage() {
                                     href={waBaseUrl}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/20"
+                                    className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-white text-xs font-bold shadow-md hover:scale-[1.02] active:scale-95 transition-all"
+                                    style={{ background: theme.gradient, boxShadow: `0 4px 14px 0 ${theme.shadowGlow}` }}
                                 >
                                     <MessageSquare className="h-4 w-4" />
                                     <span>Chat Directly on WhatsApp</span>
@@ -882,7 +1132,8 @@ export default function PublicSitePage() {
                                         placeholder="e.g. Ramesh Kumar"
                                         value={visitorName}
                                         onChange={(e) => setVisitorName(e.target.value)}
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-600 focus:bg-white"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white"
+                                        style={{ borderColor: theme.border }}
                                     />
                                 </div>
 
@@ -894,7 +1145,8 @@ export default function PublicSitePage() {
                                         placeholder="e.g. +91 9876543210"
                                         value={visitorPhone}
                                         onChange={(e) => setVisitorPhone(e.target.value)}
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-600 focus:bg-white font-mono"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white font-mono"
+                                        style={{ borderColor: theme.border }}
                                     />
                                 </div>
 
@@ -903,7 +1155,7 @@ export default function PublicSitePage() {
                                     <select
                                         value={visitorService}
                                         onChange={(e) => setVisitorService(e.target.value)}
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-emerald-600 focus:bg-white"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:bg-white"
                                     >
                                         {site.services.map((s) => (
                                             <option key={s.id} value={s.title}>{s.title}</option>
@@ -918,13 +1170,14 @@ export default function PublicSitePage() {
                                         placeholder="e.g. Would like an appointment this Saturday morning..."
                                         value={visitorMessage}
                                         onChange={(e) => setVisitorMessage(e.target.value)}
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-600 focus:bg-white"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white"
                                     />
                                 </div>
 
                                 <button
                                     type="submit"
-                                    className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold shadow-md shadow-emerald-600/20 cursor-pointer"
+                                    className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-white text-xs font-bold shadow-md hover:scale-[1.02] active:scale-95 transition-all cursor-pointer"
+                                    style={{ background: theme.gradient, boxShadow: `0 4px 14px 0 ${theme.shadowGlow}` }}
                                 >
                                     <Send className="h-4 w-4" />
                                     <span>Send Inquiry on WhatsApp</span>
@@ -942,7 +1195,10 @@ export default function PublicSitePage() {
                         {/* Col 1: Brand Info */}
                         <div className="space-y-3 md:col-span-2">
                             <div className="flex items-center gap-2">
-                                <div className="h-8 w-8 rounded-lg bg-emerald-600 text-white font-bold flex items-center justify-center text-sm">
+                                <div
+                                    className="h-8 w-8 rounded-lg text-white font-bold flex items-center justify-center text-sm shadow-xs"
+                                    style={{ background: theme.gradient }}
+                                >
                                     {site.businessName.charAt(0).toUpperCase()}
                                 </div>
                                 <span className="font-extrabold text-base text-slate-900">{site.businessName}</span>
@@ -961,7 +1217,8 @@ export default function PublicSitePage() {
                                         <button
                                             type="button"
                                             onClick={() => navigateTo(item.id)}
-                                            className="hover:text-emerald-700 transition-colors cursor-pointer"
+                                            className="hover:opacity-80 transition-opacity cursor-pointer font-medium"
+                                            style={activePage === item.id ? { color: theme.primary, fontWeight: 700 } : {}}
                                         >
                                             {item.label}
                                         </button>
@@ -979,7 +1236,8 @@ export default function PublicSitePage() {
                                 href={waBaseUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:underline pt-1"
+                                className="inline-flex items-center gap-1.5 text-xs font-bold hover:underline pt-1"
+                                style={{ color: theme.primary }}
                             >
                                 <MessageSquare className="h-3.5 w-3.5" />
                                 <span>WhatsApp Helpline</span>
@@ -991,7 +1249,7 @@ export default function PublicSitePage() {
                         <p>© {new Date().getFullYear()} {site.businessName}. All rights reserved.</p>
                         <p className="flex items-center gap-1">
                             <span>Powered by</span>
-                            <span className="text-emerald-700 font-bold">Enterprise Cloud Gateway</span>
+                            <span className="font-bold" style={{ color: theme.primary }}>Enterprise Cloud Gateway</span>
                         </p>
                     </div>
                 </div>
@@ -1001,7 +1259,7 @@ export default function PublicSitePage() {
             <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-white/95 backdrop-blur-md border-t border-slate-200 p-2.5 px-4 flex items-center gap-2 shadow-lg">
                 <a
                     href={telUrl}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-800 shadow-xs"
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-800 shadow-xs"
                 >
                     <Phone className="h-3.5 w-3.5 text-slate-600" />
                     <span>Call Now</span>
@@ -1010,7 +1268,8 @@ export default function PublicSitePage() {
                     href={waBaseUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-emerald-600 text-xs font-bold text-white shadow-md shadow-emerald-600/25"
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold text-white shadow-md active:scale-95 transition-transform"
+                    style={{ background: theme.gradient, boxShadow: `0 4px 14px 0 ${theme.shadowGlow}` }}
                 >
                     <MessageSquare className="h-3.5 w-3.5" />
                     <span>WhatsApp</span>
