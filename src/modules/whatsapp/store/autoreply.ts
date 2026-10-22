@@ -269,6 +269,7 @@ export async function bindAutoReply(sock: WASocket, sessionId: string) {
                                 useRAG: true,
                                 chatHistory,
                                 userId: session.userId,
+                                sessionId,
                             });
 
                             if (aiRes.answer) {

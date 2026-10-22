@@ -67,6 +67,7 @@ Features:
         enableWhatsAppAutoReply: false,
         whatsappSessions: [],
         systemInstructions: "You are the official AI assistant. Answer the user query using ONLY the provided Knowledge Base context when relevant. If the context does not contain the answer, politely mention that you do not have that specific detail and offer to connect with human support.",
+        sessionSystemInstructions: {},
         fallbackMessage: "I'm sorry, I couldn't find an answer to that in our knowledge base. Please contact our support team for further assistance.",
     },
 };

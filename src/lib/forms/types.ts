@@ -32,7 +32,9 @@ export interface LeadForm {
 
     // AI Outreach Automation
     enableAiOutreach: boolean;
-    outreachMode: OutreachMode; // "ai_personalized" or "template"
+    /** Create an in-app notification for the form owner on every new submission. */
+    enableLeadAlerts?: boolean;
+    outreachMode: OutreachMode; // "ai_personalized" | "template"
     aiPrompt?: string; // Custom instructions for AI outreach
     templateMessage?: string; // Fallback or template with {{name}}, {{phone}}, etc.
 

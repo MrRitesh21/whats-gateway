@@ -134,6 +134,7 @@ export default function LeadFormsDashboard() {
             leadCategory: "Website Inbound",
             leadTags: ["website", "lead-form"],
             enableAiOutreach: true,
+            enableLeadAlerts: true,
             outreachMode: "ai_personalized",
             aiPrompt: "Greet the customer warmly by name. Acknowledge what service they are interested in, highlight our quick delivery and expert support, and ask what day/time works best for a 10-minute demo call.",
             templateMessage: "Hello {{name}}! 👋 Thank you for inquiring about {{service}}. We received your message and our team is excited to help you. When is a good time to discuss your project?",
@@ -730,6 +731,18 @@ export default function LeadFormsDashboard() {
                                             Whenever a customer submits this form, the AI will immediately compose a personalized greeting and dispatch it to their WhatsApp number using your connected session.
                                         </p>
                                     </div>
+                                </div>
+
+                                <div className="flex items-center justify-between gap-4 p-3 border rounded-xl bg-blue-50/60 dark:bg-blue-950/20 border-blue-500/20">
+                                    <div className="pr-3">
+                                        <p className="text-xs font-semibold">Instant Lead Alert</p>
+                                        <p className="text-[11px] text-muted-foreground">Notify your in-app bell when this form gets a lead. Open Lead Forms to review new submissions.</p>
+                                    </div>
+                                    <Switch
+                                        checked={activeForm.enableLeadAlerts !== false}
+                                        onCheckedChange={(enabled) => setActiveForm({ ...activeForm, enableLeadAlerts: enabled })}
+                                        aria-label="Enable instant lead alerts"
+                                    />
                                 </div>
 
                                 <div className="flex items-center justify-between p-3 border rounded-xl bg-slate-50 dark:bg-slate-900">

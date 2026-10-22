@@ -3,6 +3,7 @@ import { getAIGatewayData, saveAIGatewayData } from "./storage";
 import { executeProviderCall } from "./providers";
 import { searchKnowledgeBase, buildRAGContextBlock } from "./rag";
 import { logger } from "@/lib/logger";
+import { resolveSessionSystemInstructions } from "./session-persona";
 
 let roundRobinCounter = 0;
 
@@ -82,6 +83,7 @@ export interface SmartChatOptions {
     useRAG?: boolean;
     chatHistory?: ChatMessage[];
     userId?: string;
+    sessionId?: string;
 }
 
 /**
@@ -91,7 +93,7 @@ export interface SmartChatOptions {
  * 3. Dispatches across accounts with smart failover and cooldown recovery
  */
 export async function executeSmartChat(options: SmartChatOptions): Promise<GatewayExecutionResult> {
-    const { question, customSystemPrompt, specificAccountId, useRAG = true, chatHistory = [], userId } = options;
+    const { question, customSystemPrompt, specificAccountId, useRAG = true, chatHistory = [], userId, sessionId } = options;
     const store = await getAIGatewayData(userId);
 
     // 0. Strict Deterministic Filter against coding, programming, math homework, or hacking scripts
@@ -129,7 +131,7 @@ export async function executeSmartChat(options: SmartChatOptions): Promise<Gatew
     }
 
     // 2. Build system prompt with strict domain & security guardrails
-    const baseSystem = customSystemPrompt || store.ragConfig.systemInstructions || store.gatewayConfig.defaultSystemPrompt;
+    const baseSystem = customSystemPrompt || resolveSessionSystemInstructions(store.ragConfig, sessionId) || store.gatewayConfig.defaultSystemPrompt;
 
     const securityGuardrail = `
 CRITICAL BUSINESS DOMAIN & SECURITY GUARDRAILS (STRICT COMPLIANCE REQUIRED):

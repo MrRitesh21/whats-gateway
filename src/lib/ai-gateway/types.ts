@@ -68,6 +68,7 @@ export interface RAGConfig {
     enableWhatsAppAutoReply: boolean;
     whatsappSessions: string[]; // sessionIds enabled for RAG auto-reply
     systemInstructions: string;
+    sessionSystemInstructions?: Record<string, string>; // Per-WhatsApp-session persona overrides
     fallbackMessage: string;
 }
 

@@ -94,6 +94,7 @@ interface RAGConfig {
     enableWhatsAppAutoReply: boolean;
     whatsappSessions: string[];
     systemInstructions: string;
+    sessionSystemInstructions?: Record<string, string>;
     fallbackMessage: string;
 }
 
@@ -142,6 +143,7 @@ export default function AIGatewayPage() {
         enableWhatsAppAutoReply: false,
         whatsappSessions: [],
         systemInstructions: "",
+        sessionSystemInstructions: {},
         fallbackMessage: "",
     });
 
@@ -1080,20 +1082,52 @@ export default function AIGatewayPage() {
                                 </div>
                             </div>
 
-                            {/* System Persona Instructions */}
-                            <div className="space-y-2">
-                                <Label className="text-xs font-semibold">AI System Persona &amp; Tone Instructions</Label>
-                                <Textarea
-                                    rows={4}
-                                    value={ragConfig.systemInstructions}
-                                    onChange={(e) => setRagConfig((prev) => ({ ...prev, systemInstructions: e.target.value }))}
-                                    onBlur={() => handleSaveRAGSettings({ systemInstructions: ragConfig.systemInstructions })}
-                                    placeholder="You are the official customer service assistant for WAFlow..."
-                                    className="text-xs resize-none"
-                                />
-                                <p className="text-[10px] text-muted-foreground">
-                                    Custom instructions for language, tone of voice, emoji usage, and safety guidelines.
-                                </p>
+                            {/* Shared default and per-session persona overrides */}
+                            <div className="space-y-3">
+                                <div>
+                                    <Label className="text-xs font-semibold">Default AI Persona &amp; Tone Instructions</Label>
+                                    <Textarea
+                                        rows={4}
+                                        value={ragConfig.systemInstructions}
+                                        onChange={(e) => setRagConfig((prev) => ({ ...prev, systemInstructions: e.target.value }))}
+                                        onBlur={() => handleSaveRAGSettings({ systemInstructions: ragConfig.systemInstructions })}
+                                        placeholder="Used by sessions without their own persona override..."
+                                        className="text-xs resize-y mt-2"
+                                    />
+                                    <p className="text-[10px] text-muted-foreground mt-1">This shared persona is the fallback for every session without custom instructions.</p>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-semibold">Session-specific personas</Label>
+                                    {sessions.length === 0 ? (
+                                        <p className="text-xs text-muted-foreground">Connect a WhatsApp session to configure its own persona.</p>
+                                    ) : sessions.map((session: any) => {
+                                        const sessionInstructions = ragConfig.sessionSystemInstructions?.[session.sessionId] || "";
+                                        return (
+                                            <div key={session.sessionId} className="rounded-xl border border-border/60 p-3 space-y-2">
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <div className="min-w-0">
+                                                        <p className="text-xs font-semibold truncate">{session.name}</p>
+                                                        <p className="text-[10px] font-mono text-muted-foreground truncate">{session.sessionId}</p>
+                                                    </div>
+                                                    <Badge variant="outline" className="text-[9px] shrink-0">{sessionInstructions.trim() ? "Custom persona" : "Using default"}</Badge>
+                                                </div>
+                                                <Textarea
+                                                    rows={4}
+                                                    value={sessionInstructions}
+                                                    onChange={(event) => setRagConfig((prev) => ({
+                                                        ...prev,
+                                                        sessionSystemInstructions: { ...(prev.sessionSystemInstructions || {}), [session.sessionId]: event.target.value },
+                                                    }))}
+                                                    onBlur={() => handleSaveRAGSettings({ sessionSystemInstructions: ragConfig.sessionSystemInstructions || {} })}
+                                                    placeholder={`Persona and tone instructions for ${session.name}. Leave blank to use the default.`}
+                                                    className="text-xs resize-y"
+                                                    aria-label={`${session.name} AI persona instructions`}
+                                                />
+                                            </div>
+                                        );
+                                    })}
+                                    <p className="text-[10px] text-muted-foreground">A custom persona applies only to its matching WhatsApp session. Blank fields inherit the default persona.</p>
+                                </div>
                             </div>
 
                             {/* Fallback Message */}

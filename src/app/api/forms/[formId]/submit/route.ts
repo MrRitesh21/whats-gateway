@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getFormById } from "@/lib/forms/storage";
-import { captureFormSubmission, dispatchFormOutreach } from "@/lib/forms/outreach";
+import { captureFormSubmission, dispatchFormLeadAlert, dispatchFormOutreach } from "@/lib/forms/outreach";
 
 // CORS Headers so client websites can embed the form via JavaScript fetch/AJAX
 const CORS_HEADERS = {
@@ -90,6 +90,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ for
         // Persist CRM + form records before acknowledging the submission. Only
         // the potentially slow AI/WhatsApp step is detached from the response.
         const captured = await captureFormSubmission({ form, submissionData, ip, userAgent });
+        await dispatchFormLeadAlert(captured);
         void dispatchFormOutreach(captured).catch((error) => {
             console.error("[Forms] Background outreach dispatch failed", error);
         });

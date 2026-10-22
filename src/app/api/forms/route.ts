@@ -78,6 +78,7 @@ export async function POST(req: NextRequest) {
             leadCategory: body.leadCategory || "Website Inbound",
             leadTags: Array.isArray(body.leadTags) ? body.leadTags : ["website", "lead-form"],
             enableAiOutreach: Boolean(body.enableAiOutreach),
+            enableLeadAlerts: body.enableLeadAlerts !== false,
             outreachMode: body.outreachMode === "template" ? "template" : "ai_personalized",
             aiPrompt: body.aiPrompt || "",
             templateMessage: body.templateMessage || "",

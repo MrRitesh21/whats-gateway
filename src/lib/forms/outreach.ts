@@ -7,6 +7,8 @@ import { waManager } from "@/modules/whatsapp/manager";
 import { executeSmartChat } from "@/lib/ai-gateway/gateway";
 import { getAIGatewayData } from "@/lib/ai-gateway/storage";
 import { logger } from "@/lib/logger";
+import { prisma } from "@/lib/prisma";
+import { buildFormLeadAlert } from "./lead-alert";
 
 export interface CaptureFormSubmissionParams {
     form: LeadForm;
@@ -95,6 +97,25 @@ export async function captureFormSubmission(params: CaptureFormSubmissionParams)
     await recordSubmission(submission, form.userId);
 
     return { form, submissionData, lead, submission, name, email, formattedPhone, whatsappJid, notesSummary };
+}
+
+/** Persist and emit a realtime in-app alert to the form owner. */
+export async function dispatchFormLeadAlert(captured: CapturedFormSubmission): Promise<void> {
+    const { form, name } = captured;
+    if (form.enableLeadAlerts === false || !form.userId) return;
+
+    try {
+        const payload = buildFormLeadAlert({
+            userId: form.userId,
+            formTitle: form.title,
+            name,
+        });
+        const notification = await prisma.notification.create({ data: payload });
+        const io = (globalThis as any).io;
+        io?.to(`user:${form.userId}`).emit("notification:new", notification);
+    } catch (error) {
+        logger.error("Forms", `Failed to create lead alert for form ${form.id}`, error);
+    }
 }
 
 /** Deliver WhatsApp outreach only after CRM and form records are durable. */

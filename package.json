@@ -13,6 +13,8 @@
     "test:channels": "tsx scripts/test-channel-automation.ts",
     "test:instagram:oauth": "tsx scripts/test-instagram-oauth.ts",
     "test:crm:lead-delete": "tsx scripts/test-crm-lead-delete.ts",
+    "test:forms:lead-alert": "tsx scripts/test-form-lead-alert.ts",
+    "test:ai:session-persona": "tsx scripts/test-session-persona.ts",
     "db:studio": "prisma studio",
     "make-admin": "node scripts/setup-admin.js",
     "postinstall": "patch-package",
