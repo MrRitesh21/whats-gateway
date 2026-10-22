@@ -73,11 +73,15 @@ import {
     ChevronRight,
     ChevronsLeft,
     ChevronsRight,
+    Copy,
+    Share2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/components/dashboard/session-provider";
 import type { Lead, LeadStage, LeadPriority, LeadActivity, WhatsAppSyncResult } from "@/lib/crm/types";
+import { THEME_CONFIGS } from "@/lib/sites/presets";
+import type { SiteThemeColor } from "@/lib/sites/types";
 
 const STAGES: { id: LeadStage; name: string; color: string; bg: string }[] = [
     { id: "NEW", name: "New Leads", color: "text-blue-500", bg: "bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800/40" },
@@ -217,6 +221,85 @@ export default function CRMPage() {
     const [messageText, setMessageText] = useState("");
     const [sendingMsg, setSendingMsg] = useState(false);
     const [targetLead, setTargetLead] = useState<Lead | null>(null);
+
+    // Website Generator Modal
+    const [websiteModalOpen, setWebsiteModalOpen] = useState(false);
+    const [generatingWebsite, setGeneratingWebsite] = useState(false);
+    const [websiteTargetLead, setWebsiteTargetLead] = useState<Lead | null>(null);
+    const [siteBusinessName, setSiteBusinessName] = useState("");
+    const [siteCategory, setSiteCategory] = useState("Dental Clinic & Dentistry");
+    const [siteCity, setSiteCity] = useState("");
+    const [sitePhone, setSitePhone] = useState("");
+    const [siteTheme, setSiteTheme] = useState<SiteThemeColor>("emerald");
+    const [siteHeadline, setSiteHeadline] = useState("");
+    const [generatedResult, setGeneratedResult] = useState<{
+        site: any;
+        publicUrl: string;
+        whatsappShareText: string;
+    } | null>(null);
+    const [copiedLink, setCopiedLink] = useState(false);
+
+    const openWebsiteGenerator = (lead: Lead) => {
+        setWebsiteTargetLead(lead);
+        setSiteBusinessName(lead.name || "");
+        setSiteCategory(lead.category || "General Business & Retail");
+        setSiteCity(lead.city || "");
+        setSitePhone(lead.formattedPhone || lead.phone || "");
+        setSiteTheme("emerald");
+        setSiteHeadline("");
+        setGeneratedResult(null);
+        setCopiedLink(false);
+        setWebsiteModalOpen(true);
+    };
+
+    const handleGenerateWebsite = async () => {
+        if (!siteBusinessName.trim() || !sitePhone.trim()) {
+            toast.error("Business name and phone are required");
+            return;
+        }
+
+        setGeneratingWebsite(true);
+        try {
+            const res = await fetch("/api/sites/generate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    leadId: websiteTargetLead?.id,
+                    businessName: siteBusinessName.trim(),
+                    category: siteCategory,
+                    city: siteCity.trim(),
+                    phone: sitePhone.trim(),
+                    themeColor: siteTheme,
+                    headline: siteHeadline.trim() || undefined,
+                }),
+            });
+            const json = await res.json();
+            if (json.status && json.data) {
+                setGeneratedResult(json.data);
+                toast.success("Mobile website generated and saved to database!");
+
+                // Update in local leads state immediately
+                if (websiteTargetLead) {
+                    setLeads((prev) =>
+                        prev.map((l) =>
+                            l.id === websiteTargetLead.id
+                                ? { ...l, website: `/site/${json.data.site.slug}` }
+                                : l
+                        )
+                    );
+                    if (activeLead && activeLead.id === websiteTargetLead.id) {
+                        setActiveLead((prev) => (prev ? { ...prev, website: `/site/${json.data.site.slug}` } : null));
+                    }
+                }
+            } else {
+                toast.error(json.message || "Failed to generate website");
+            }
+        } catch (err: any) {
+            toast.error(err.message || "Error generating website");
+        } finally {
+            setGeneratingWebsite(false);
+        }
+    };
 
     // Auto-select session for sync
     useEffect(() => {
@@ -970,6 +1053,25 @@ export default function CRMPage() {
                         </button>
                     </div>
 
+                    {/* Interested stage recommendation banner */}
+                    {selectedStage === "INTERESTED" && (
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-gradient-to-r from-cyan-500/10 via-emerald-500/10 to-transparent rounded-xl border border-cyan-500/30 text-xs">
+                            <div className="flex items-center gap-2.5">
+                                <div className="h-8 w-8 rounded-lg bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 flex items-center justify-center shrink-0">
+                                    <Sparkles className="h-4 w-4" />
+                                </div>
+                                <div>
+                                    <p className="font-semibold text-foreground">
+                                        Interested Leads: Instant 1-Click Mobile Website Generator
+                                    </p>
+                                    <p className="text-[11px] text-muted-foreground">
+                                        Create a high-converting website preview for your interested leads in 1-click and send the live URL directly on WhatsApp!
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Batch Actions Bar (Visible when leads selected) */}
                     {selectedLeadIds.length > 0 && (
                         <div className="flex items-center justify-between p-2.5 bg-blue-50 dark:bg-blue-950/20 rounded-xl border border-blue-200 dark:border-blue-800/40 text-xs">
@@ -1151,20 +1253,59 @@ export default function CRMPage() {
                                                     </TableCell>
                                                     <TableCell>
                                                         {lead.website ? (
-                                                            <a
-                                                                href={lead.website.startsWith("http://") || lead.website.startsWith("https://") ? lead.website : `https://${lead.website}`}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                title={lead.website}
-                                                                className="text-primary hover:underline inline-flex items-center gap-1 font-medium text-xs max-w-[170px] truncate"
-                                                                onClick={(e) => e.stopPropagation()}
+                                                            <div className="flex items-center gap-1.5">
+                                                                <a
+                                                                    href={lead.website.startsWith("http://") || lead.website.startsWith("https://") ? lead.website : lead.website.startsWith("/") ? lead.website : `https://${lead.website}`}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    title={lead.website}
+                                                                    className="text-primary hover:underline inline-flex items-center gap-1 font-medium text-xs max-w-[150px] truncate"
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                >
+                                                                    <Globe className="h-3 w-3 shrink-0 text-muted-foreground" />
+                                                                    <span className="truncate">{lead.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}</span>
+                                                                    <ExternalLink className="h-2.5 w-2.5 shrink-0 opacity-70" />
+                                                                </a>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        const fullUrl = lead.website!.startsWith("http") ? lead.website! : `${window.location.origin}${lead.website!.startsWith("/") ? "" : "/"}${lead.website}`;
+                                                                        const shareText = `Namaste *${lead.name}*,\n\nHumne aapke business ke liye ek professional mobile-friendly website taiyar ki hai:\n🌐 ${fullUrl}\n\nIse apne phone me open karke check karein aur batayein kaisa laga!`;
+                                                                        window.open(`https://wa.me/${lead.formattedPhone}?text=${encodeURIComponent(shareText)}`, "_blank");
+                                                                    }}
+                                                                    title="Send Website on WhatsApp to Client"
+                                                                    className="h-5 w-5 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center hover:bg-emerald-100 hover:scale-105 active:scale-95 transition-all shrink-0 cursor-pointer"
+                                                                >
+                                                                    <Send className="h-2.5 w-2.5" />
+                                                                </button>
+                                                            </div>
+                                                        ) : lead.stage === "INTERESTED" ? (
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    openWebsiteGenerator(lead);
+                                                                }}
+                                                                title="Create 1-Click Mobile Website for this Interested Lead"
+                                                                className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 text-[10px] font-semibold transition-all hover:scale-105 active:scale-95 shadow-sm cursor-pointer"
                                                             >
-                                                                <Globe className="h-3 w-3 shrink-0 text-muted-foreground" />
-                                                                <span className="truncate">{lead.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}</span>
-                                                                <ExternalLink className="h-2.5 w-2.5 shrink-0 opacity-70" />
-                                                            </a>
+                                                                <Sparkles className="h-3 w-3 text-cyan-500 animate-pulse" />
+                                                                <span>✨ Create Site</span>
+                                                            </button>
                                                         ) : (
-                                                            <span className="text-muted-foreground text-[10px]">—</span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    openWebsiteGenerator(lead);
+                                                                }}
+                                                                title="Generate Instant Website"
+                                                                className="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors py-0.5 px-1.5 rounded hover:bg-muted/50 cursor-pointer"
+                                                            >
+                                                                <Plus className="h-3 w-3" />
+                                                                <span>Create Site</span>
+                                                            </button>
                                                         )}
                                                     </TableCell>
                                                     <TableCell>
@@ -1231,6 +1372,15 @@ export default function CRMPage() {
                                                                 className="h-7 w-7 p-0 text-primary hover:text-primary hover:bg-primary/10"
                                                             >
                                                                 <Send className="h-3.5 w-3.5" />
+                                                            </Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => openWebsiteGenerator(lead)}
+                                                                title="Generate Instant Mobile Website"
+                                                                className="h-7 w-7 p-0 text-cyan-600 hover:text-cyan-700 hover:bg-cyan-50 dark:hover:bg-cyan-950/20"
+                                                            >
+                                                                <Sparkles className="h-3.5 w-3.5" />
                                                             </Button>
                                                             <Button
                                                                 variant="ghost"
@@ -1947,19 +2097,48 @@ export default function CRMPage() {
                                 </div>
                             )}
 
-                            {activeLead.website && (
-                                <div className="space-y-1">
+                            <div className="space-y-1">
+                                <div className="flex items-center justify-between">
                                     <span className="text-muted-foreground block text-[10px]">Website</span>
-                                    <a
-                                        href={activeLead.website}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="text-blue-600 hover:underline flex items-center gap-1"
+                                    <button
+                                        type="button"
+                                        onClick={() => openWebsiteGenerator(activeLead)}
+                                        className="inline-flex items-center gap-1 text-[10px] text-cyan-600 hover:text-cyan-700 font-medium cursor-pointer"
                                     >
-                                        <Globe className="h-3 w-3" /> {activeLead.website}
-                                    </a>
+                                        <Sparkles className="h-3 w-3" />
+                                        <span>{activeLead.website ? "Regenerate Website" : "✨ 1-Click Generate Website"}</span>
+                                    </button>
                                 </div>
-                            )}
+                                {activeLead.website ? (
+                                    <div className="flex items-center gap-2">
+                                        <a
+                                            href={activeLead.website.startsWith("http") ? activeLead.website : `${window.location.origin}${activeLead.website.startsWith("/") ? "" : "/"}${activeLead.website}`}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="text-primary hover:underline flex items-center gap-1 text-xs font-medium truncate flex-1"
+                                        >
+                                            <Globe className="h-3 w-3 shrink-0" />
+                                            <span className="truncate">{activeLead.website}</span>
+                                            <ExternalLink className="h-2.5 w-2.5 shrink-0 opacity-70" />
+                                        </a>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const fullUrl = activeLead.website!.startsWith("http") ? activeLead.website! : `${window.location.origin}${activeLead.website!.startsWith("/") ? "" : "/"}${activeLead.website}`;
+                                                const shareText = `Namaste *${activeLead.name}*,\n\nHumne aapke business ke liye ek professional mobile-friendly website taiyar ki hai:\n🌐 ${fullUrl}\n\nIse apne phone me open karke check karein aur batayein kaisa laga!`;
+                                                window.open(`https://wa.me/${activeLead.formattedPhone}?text=${encodeURIComponent(shareText)}`, "_blank");
+                                            }}
+                                            title="Send Website on WhatsApp to Client"
+                                            className="px-2 py-1 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 hover:bg-emerald-100 text-[10px] font-medium flex items-center gap-1 shrink-0 cursor-pointer"
+                                        >
+                                            <Send className="h-2.5 w-2.5" />
+                                            <span>Send to Client</span>
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <span className="text-muted-foreground text-xs block">— No website linked</span>
+                                )}
+                            </div>
 
                             {/* Quick Stage Mover */}
                             <div className="space-y-1.5 pt-2 border-t border-border/30">
@@ -2178,6 +2357,276 @@ export default function CRMPage() {
                                 </>
                             )}
                         </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* ─── 1-CLICK INSTANT WEBSITE GENERATOR MODAL ───────────────────────── */}
+            <Dialog open={websiteModalOpen} onOpenChange={setWebsiteModalOpen}>
+                <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <div className="flex items-center gap-2">
+                            <div className="h-8 w-8 rounded-lg bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 flex items-center justify-center">
+                                <Sparkles className="h-4 w-4" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-base font-bold flex items-center gap-2">
+                                    Instant Mobile Website Generator
+                                    <Badge variant="outline" className="text-[10px] bg-cyan-500/10 text-cyan-600 border-cyan-500/20 font-medium">
+                                        1-Click AI
+                                    </Badge>
+                                </DialogTitle>
+                                <DialogDescription className="text-xs">
+                                    Create a complete, responsive mobile website for this lead and save the live URL directly into CRM database.
+                                </DialogDescription>
+                            </div>
+                        </div>
+                    </DialogHeader>
+
+                    {!generatedResult ? (
+                        <div className="space-y-4 py-2 text-xs">
+                            {/* Business Name & WhatsApp Phone */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-semibold">Business Name *</Label>
+                                    <Input
+                                        value={siteBusinessName}
+                                        onChange={(e) => setSiteBusinessName(e.target.value)}
+                                        placeholder="e.g. Crystalline Dental Clinic"
+                                        className="text-xs h-9"
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-semibold">WhatsApp Number *</Label>
+                                    <Input
+                                        value={sitePhone}
+                                        onChange={(e) => setSitePhone(e.target.value)}
+                                        placeholder="e.g. 919876543210"
+                                        className="text-xs h-9 font-mono"
+                                    />
+                                    <p className="text-[10px] text-muted-foreground">Visitors will directly chat &amp; call on this number</p>
+                                </div>
+                            </div>
+
+                            {/* Category & City */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-semibold">Industry / Category</Label>
+                                    <Select value={siteCategory} onValueChange={setSiteCategory}>
+                                        <SelectTrigger className="h-9 text-xs">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="Dental Clinic & Dentistry">Dental Clinic &amp; Dentistry</SelectItem>
+                                            <SelectItem value="Hospital, Clinic & Doctor">Hospital, Clinic &amp; Doctor</SelectItem>
+                                            <SelectItem value="Salon, Spa & Beauty Care">Salon, Spa &amp; Beauty Care</SelectItem>
+                                            <SelectItem value="Restaurant, Cafe & Dining">Restaurant, Cafe &amp; Dining</SelectItem>
+                                            <SelectItem value="Real Estate & Property">Real Estate &amp; Property</SelectItem>
+                                            <SelectItem value="Education, Coaching & Classes">Education, Coaching &amp; Classes</SelectItem>
+                                            <SelectItem value="Law Firm, Advocate & Legal Services">Law Firm &amp; Legal Services</SelectItem>
+                                            <SelectItem value="Gym, Fitness & Yoga">Gym, Fitness &amp; Yoga</SelectItem>
+                                            <SelectItem value="Digital Marketing, IT & Agency">Digital Marketing &amp; IT Agency</SelectItem>
+                                            <SelectItem value="General Business & Retail">General Business &amp; Retail</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-semibold">City / Location</Label>
+                                    <Input
+                                        value={siteCity}
+                                        onChange={(e) => setSiteCity(e.target.value)}
+                                        placeholder="e.g. Jankipuram Lucknow"
+                                        className="text-xs h-9"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Color Theme Selector */}
+                            <div className="space-y-2">
+                                <Label className="text-xs font-semibold">Choose Color Theme</Label>
+                                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                                    {(
+                                        [
+                                            { id: "emerald", label: "Emerald", hex: "#059669", bg: "bg-emerald-600" },
+                                            { id: "sapphire", label: "Sapphire", hex: "#2563EB", bg: "bg-blue-600" },
+                                            { id: "gold", label: "Gold & Noir", hex: "#D97706", bg: "bg-amber-600" },
+                                            { id: "crimson", label: "Crimson", hex: "#E11D48", bg: "bg-rose-600" },
+                                            { id: "violet", label: "Violet", hex: "#7C3AED", bg: "bg-purple-600" },
+                                            { id: "teal", label: "Teal", hex: "#0D9488", bg: "bg-teal-600" },
+                                        ] as const
+                                    ).map((th) => {
+                                        const isSelected = siteTheme === th.id;
+                                        return (
+                                            <button
+                                                key={th.id}
+                                                type="button"
+                                                onClick={() => setSiteTheme(th.id)}
+                                                className={`p-2 rounded-xl border text-center transition-all cursor-pointer ${
+                                                    isSelected
+                                                        ? "border-primary ring-2 ring-primary/20 bg-primary/5"
+                                                        : "border-border/60 hover:border-border bg-card hover:bg-muted/30"
+                                                }`}
+                                            >
+                                                <div className={`h-6 w-full rounded-md ${th.bg} mb-1.5 shadow-sm`} />
+                                                <span className="text-[10px] font-medium block truncate">{th.label}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Custom Headline / Tagline (Optional) */}
+                            <div className="space-y-1.5">
+                                <Label className="text-xs font-semibold">Custom Headline (Optional)</Label>
+                                <Input
+                                    value={siteHeadline}
+                                    onChange={(e) => setSiteHeadline(e.target.value)}
+                                    placeholder="Leave blank to auto-generate catchy headline"
+                                    className="text-xs h-9"
+                                />
+                                <p className="text-[10px] text-muted-foreground">
+                                    Auto-generates: Hero, About Us, 6 Services, Why Choose Us, 3 Testimonials, Location &amp; Working Hours, and direct WhatsApp / Call CTA.
+                                </p>
+                            </div>
+                        </div>
+                    ) : (
+                        /* Success View */
+                        <div className="space-y-4 py-2 text-xs">
+                            <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-500/30 text-center space-y-2">
+                                <div className="h-10 w-10 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 mx-auto flex items-center justify-center">
+                                    <CheckCircle2 className="h-6 w-6" />
+                                </div>
+                                <h4 className="text-sm font-bold text-foreground">
+                                    Website Successfully Generated &amp; Saved!
+                                </h4>
+                                <p className="text-xs text-muted-foreground">
+                                    The website URL has been automatically linked to <span className="font-semibold text-foreground">{generatedResult.site.businessName}</span> in CRM database.
+                                </p>
+                            </div>
+
+                            {/* Public URL Box */}
+                            <div className="space-y-1.5">
+                                <Label className="text-xs font-semibold">Public Live Website URL</Label>
+                                <div className="flex items-center gap-2">
+                                    <Input
+                                        readOnly
+                                        value={generatedResult.publicUrl}
+                                        className="text-xs font-mono bg-muted/30 h-9"
+                                    />
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => {
+                                            navigator.clipboard.writeText(generatedResult.publicUrl);
+                                            setCopiedLink(true);
+                                            toast.success("Website URL copied to clipboard!");
+                                            setTimeout(() => setCopiedLink(false), 2000);
+                                        }}
+                                        className="h-9 px-3 gap-1 shrink-0"
+                                    >
+                                        {copiedLink ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                                        <span>{copiedLink ? "Copied" : "Copy"}</span>
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        onClick={() => window.open(generatedResult.publicUrl, "_blank")}
+                                        className="h-9 px-3 gap-1 bg-primary text-primary-foreground shrink-0"
+                                    >
+                                        <ExternalLink className="h-3.5 w-3.5" />
+                                        <span>Preview</span>
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {/* WhatsApp Share Box */}
+                            <div className="p-3.5 rounded-xl border border-border/60 bg-card space-y-2.5">
+                                <div className="flex items-center justify-between">
+                                    <span className="font-semibold text-xs flex items-center gap-1.5 text-emerald-600">
+                                        <MessageSquare className="h-3.5 w-3.5" />
+                                        Client WhatsApp Notification Message
+                                    </span>
+                                    <Badge variant="outline" className="text-[9px] bg-emerald-500/10 text-emerald-600">
+                                        Ready to Send
+                                    </Badge>
+                                </div>
+                                <Textarea
+                                    rows={4}
+                                    readOnly
+                                    value={generatedResult.whatsappShareText}
+                                    className="text-xs font-sans bg-muted/20"
+                                />
+                                <div className="flex items-center justify-end gap-2 pt-1">
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => {
+                                            navigator.clipboard.writeText(generatedResult.whatsappShareText);
+                                            toast.success("WhatsApp message copied!");
+                                        }}
+                                        className="h-8 text-xs gap-1"
+                                    >
+                                        <Copy className="h-3 w-3" />
+                                        <span>Copy Message</span>
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        onClick={() => {
+                                            const phone = generatedResult.site.formattedPhone;
+                                            const url = `https://wa.me/${phone}?text=${encodeURIComponent(generatedResult.whatsappShareText)}`;
+                                            window.open(url, "_blank");
+                                        }}
+                                        className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                                    >
+                                        <Send className="h-3.5 w-3.5" />
+                                        <span>Send Directly on WhatsApp</span>
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <DialogFooter>
+                        {!generatedResult ? (
+                            <>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setWebsiteModalOpen(false)}
+                                    disabled={generatingWebsite}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    onClick={handleGenerateWebsite}
+                                    disabled={generatingWebsite || !siteBusinessName.trim() || !sitePhone.trim()}
+                                    className="bg-gradient-to-r from-cyan-600 to-emerald-600 hover:from-cyan-500 hover:to-emerald-500 text-white font-bold gap-1.5 shadow-md shadow-emerald-500/20"
+                                >
+                                    {generatingWebsite ? (
+                                        <>
+                                            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                            <span>Building Website...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Sparkles className="h-3.5 w-3.5" />
+                                            <span>Generate Website in 1-Click</span>
+                                        </>
+                                    )}
+                                </Button>
+                            </>
+                        ) : (
+                            <Button
+                                size="sm"
+                                onClick={() => {
+                                    setWebsiteModalOpen(false);
+                                    setGeneratedResult(null);
+                                }}
+                                className="bg-primary text-primary-foreground"
+                            >
+                                Done &amp; Return to CRM
+                            </Button>
+                        )}
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
