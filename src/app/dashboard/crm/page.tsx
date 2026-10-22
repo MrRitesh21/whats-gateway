@@ -842,7 +842,7 @@ export default function CRMPage() {
                         <div className="relative flex-1 min-w-[240px]">
                             <Search className="h-4 w-4 absolute left-3 top-3 text-muted-foreground" />
                             <Input
-                                placeholder="Search by name, phone, city, notes, or deal value..."
+                                placeholder="Search by name, phone, city, notes, or website..."
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 className="pl-9 h-10 text-xs"
@@ -1079,7 +1079,7 @@ export default function CRMPage() {
                                             <TableHead>Business / Contact</TableHead>
                                             <TableHead>Priority</TableHead>
                                             <TableHead>WhatsApp Phone</TableHead>
-                                            <TableHead>Deal Value</TableHead>
+                                            <TableHead>Website</TableHead>
                                             <TableHead>Category / City</TableHead>
                                             <TableHead>Follow-Up</TableHead>
                                             <TableHead>Pipeline Stage</TableHead>
@@ -1150,9 +1150,22 @@ export default function CRMPage() {
                                                         </div>
                                                     </TableCell>
                                                     <TableCell>
-                                                        <span className="font-semibold text-foreground font-mono">
-                                                            ₹{(lead.value || 0).toLocaleString("en-IN")}
-                                                        </span>
+                                                        {lead.website ? (
+                                                            <a
+                                                                href={lead.website.startsWith("http://") || lead.website.startsWith("https://") ? lead.website : `https://${lead.website}`}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                title={lead.website}
+                                                                className="text-primary hover:underline inline-flex items-center gap-1 font-medium text-xs max-w-[170px] truncate"
+                                                                onClick={(e) => e.stopPropagation()}
+                                                            >
+                                                                <Globe className="h-3 w-3 shrink-0 text-muted-foreground" />
+                                                                <span className="truncate">{lead.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}</span>
+                                                                <ExternalLink className="h-2.5 w-2.5 shrink-0 opacity-70" />
+                                                            </a>
+                                                        ) : (
+                                                            <span className="text-muted-foreground text-[10px]">—</span>
+                                                        )}
                                                     </TableCell>
                                                     <TableCell>
                                                         <div className="space-y-0.5">
@@ -1443,11 +1456,25 @@ export default function CRMPage() {
                                                             </Badge>
                                                         </div>
 
-                                                        <div className="flex items-center justify-between text-[11px]">
-                                                            <span className="font-semibold font-mono text-emerald-600 text-xs">
-                                                                ₹{(lead.value || 0).toLocaleString("en-IN")}
-                                                            </span>
-                                                            <Badge variant="outline" className="text-[9px] px-1 font-normal truncate max-w-[110px]">
+                                                        <div className="flex items-center justify-between text-[11px] gap-1.5">
+                                                            {lead.website ? (
+                                                                <a
+                                                                    href={lead.website.startsWith("http://") || lead.website.startsWith("https://") ? lead.website : `https://${lead.website}`}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    title={lead.website}
+                                                                    className="text-primary hover:underline inline-flex items-center gap-1 font-medium text-[11px] truncate"
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                >
+                                                                    <Globe className="h-3 w-3 shrink-0 text-muted-foreground" />
+                                                                    <span className="truncate">{lead.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}</span>
+                                                                </a>
+                                                            ) : (
+                                                                <span className="font-semibold font-mono text-emerald-600 text-xs">
+                                                                    ₹{(lead.value || 0).toLocaleString("en-IN")}
+                                                                </span>
+                                                            )}
+                                                            <Badge variant="outline" className="text-[9px] px-1 font-normal truncate max-w-[110px] shrink-0">
                                                                 {lead.category || "General"}
                                                             </Badge>
                                                         </div>

@@ -73,6 +73,7 @@ export async function GET(request: NextRequest) {
                     (l.category && l.category.toLowerCase().includes(search)) ||
                     (l.city && l.city.toLowerCase().includes(search)) ||
                     (l.keyword && l.keyword.toLowerCase().includes(search)) ||
+                    (l.website && l.website.toLowerCase().includes(search)) ||
                     (l.address && l.address.toLowerCase().includes(search))
                 );
             });
