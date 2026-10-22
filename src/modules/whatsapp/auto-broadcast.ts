@@ -1,6 +1,7 @@
 import cron from "node-cron";
 import path from "path";
 import fs from "fs";
+import { convertToWhatsAppAudio } from "@/lib/whatsapp-audio";
 import { prisma } from "@/lib/prisma";
 import { waManager } from "./manager";
 import { logger } from "@/lib/logger";
@@ -178,6 +179,11 @@ async function sendBroadcast(broadcast: any) {
                     } else if (broadcast.mediaType === "video") {
                         mediaContent.video = mediaSource;
                         mediaContent.caption = broadcast.message;
+                    } else if (broadcast.mediaType === "audio" || broadcast.mediaType === "voice") {
+                        const waAudio = await convertToWhatsAppAudio(mediaSource, true);
+                        mediaContent.audio = waAudio.buffer;
+                        mediaContent.mimetype = waAudio.mimetype;
+                        mediaContent.ptt = waAudio.ptt;
                     } else if (broadcast.mediaType === "document") {
                         mediaContent.document = mediaSource;
                         mediaContent.caption = broadcast.message;

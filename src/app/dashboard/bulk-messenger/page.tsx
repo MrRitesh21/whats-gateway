@@ -25,7 +25,7 @@ import {
     ChevronDown, ChevronUp, Info, Square, ArrowRight, Layers,
     SwitchCamera, Timer, Keyboard, History, Eye, Trash2, UserCheck,
     Search, Sparkles, ChevronLeft, ChevronRight, Check, Copy,
-    Pause, Play, LifeBuoy, WifiOff, Paperclip, FileText, Image as ImageIcon, Video as VideoIcon
+    Pause, Play, LifeBuoy, WifiOff, Paperclip, FileText, Image as ImageIcon, Video as VideoIcon, Mic
 } from "lucide-react";
 import { toast } from "sonner";
 import { createAppSocket } from "@/lib/socket-client";
@@ -79,7 +79,7 @@ export default function BulkMessengerPage() {
 
     // ─── Media Attachment State ───────────────────────────────────────────────
     const [mediaUrl, setMediaUrl] = useState("");
-    const [mediaType, setMediaType] = useState<"image" | "video" | "document">("image");
+    const [mediaType, setMediaType] = useState<"image" | "video" | "audio" | "document">("image");
     const [mediaFileName, setMediaFileName] = useState("");
     const [uploadingMedia, setUploadingMedia] = useState(false);
 
@@ -95,10 +95,12 @@ export default function BulkMessengerPage() {
             return;
         }
 
-        let detectedType: "image" | "video" | "document" = "image";
+        let detectedType: "image" | "video" | "audio" | "document" = "image";
         const ext = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
         if (file.type.startsWith("video/") || [".mp4", ".mov", ".mkv", ".webm", ".3gp", ".avi"].includes(ext)) {
             detectedType = "video";
+        } else if (file.type.startsWith("audio/") || [".mp3", ".wav", ".ogg", ".m4a", ".aac", ".opus", ".amr"].includes(ext)) {
+            detectedType = "audio";
         } else if (file.type.startsWith("image/") || [".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg"].includes(ext)) {
             detectedType = "image";
         } else {
@@ -1147,12 +1149,12 @@ export default function BulkMessengerPage() {
                                         {!mediaUrl ? (
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                                                 <label className="flex items-center justify-center gap-2 px-3 py-2.5 border border-dashed border-border hover:border-primary/60 rounded-xl cursor-pointer bg-background/50 hover:bg-muted/30 transition-colors text-xs text-muted-foreground font-medium">
-                                                    <ImageIcon className="h-4 w-4 text-primary" />
-                                                    <span>{uploadingMedia ? "Uploading..." : "Upload Image / Video / Doc"}</span>
+                                                    <Paperclip className="h-4 w-4 text-primary" />
+                                                    <span>{uploadingMedia ? "Uploading..." : "Upload Image / Video / Audio / Doc"}</span>
                                                     <input
                                                         type="file"
                                                         className="hidden"
-                                                        accept="image/*,video/*,.pdf,.doc,.docx,.mp4,.mov,.mkv,.webm,.3gp,.avi"
+                                                        accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.mp4,.mov,.mkv,.webm,.3gp,.avi,.mp3,.wav,.ogg,.m4a,.aac,.opus,.amr"
                                                         onChange={handleFileUpload}
                                                         disabled={uploadingMedia || loading}
                                                     />
@@ -1165,8 +1167,10 @@ export default function BulkMessengerPage() {
                                                         onChange={(e) => {
                                                             const val = e.target.value;
                                                             setMediaUrl(val);
-                                                            if (val.endsWith(".mp4") || val.endsWith(".mov")) setMediaType("video");
-                                                            else if (val.endsWith(".pdf") || val.endsWith(".doc") || val.endsWith(".docx")) setMediaType("document");
+                                                            const lower = val.toLowerCase();
+                                                            if (lower.endsWith(".mp4") || lower.endsWith(".mov") || lower.endsWith(".mkv") || lower.endsWith(".webm") || lower.endsWith(".3gp") || lower.endsWith(".avi")) setMediaType("video");
+                                                            else if (lower.endsWith(".mp3") || lower.endsWith(".wav") || lower.endsWith(".ogg") || lower.endsWith(".m4a") || lower.endsWith(".opus") || lower.endsWith(".aac") || lower.endsWith(".amr")) setMediaType("audio");
+                                                            else if (lower.endsWith(".pdf") || lower.endsWith(".doc") || lower.endsWith(".docx")) setMediaType("document");
                                                             else setMediaType("image");
                                                         }}
                                                         disabled={loading}
@@ -1177,11 +1181,21 @@ export default function BulkMessengerPage() {
                                             <div className="flex items-center justify-between p-2.5 bg-background rounded-xl border border-primary/20 text-xs">
                                                 <div className="flex items-center gap-2.5 overflow-hidden">
                                                     <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                                                        {mediaType === "video" ? <VideoIcon className="h-4 w-4" /> : mediaType === "document" ? <FileText className="h-4 w-4" /> : <ImageIcon className="h-4 w-4" />}
+                                                        {mediaType === "video" ? (
+                                                            <VideoIcon className="h-4 w-4" />
+                                                        ) : mediaType === "audio" ? (
+                                                            <Mic className="h-4 w-4" />
+                                                        ) : mediaType === "document" ? (
+                                                            <FileText className="h-4 w-4" />
+                                                        ) : (
+                                                            <ImageIcon className="h-4 w-4" />
+                                                        )}
                                                     </div>
                                                     <div className="truncate">
                                                         <p className="font-medium text-foreground truncate">{mediaFileName || "Attached Media"}</p>
-                                                        <p className="text-[10px] text-muted-foreground uppercase">{mediaType} ready to send with caption</p>
+                                                        <p className="text-[10px] text-muted-foreground uppercase">
+                                                            {mediaType === "audio" ? "Voice / Audio note ready to send" : `${mediaType} ready to send with caption`}
+                                                        </p>
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-1.5">
@@ -1192,6 +1206,7 @@ export default function BulkMessengerPage() {
                                                     >
                                                         <option value="image">Image</option>
                                                         <option value="video">Video</option>
+                                                        <option value="audio">Voice / Audio</option>
                                                         <option value="document">Document</option>
                                                     </select>
                                                     <Badge variant="secondary" className="text-[10px]">Attached</Badge>
@@ -1245,7 +1260,11 @@ export default function BulkMessengerPage() {
                                         <div className="bg-[#E7FFDB] dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-100 p-3 rounded-2xl rounded-tl-none border border-emerald-200 dark:border-emerald-800/40 text-sm whitespace-pre-wrap font-sans shadow-xs space-y-2">
                                             {mediaUrl && (
                                                 <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 border border-emerald-300 dark:border-emerald-700/50 flex items-center gap-2 text-xs font-semibold">
-                                                    <Paperclip className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-300" />
+                                                    {mediaType === "audio" ? (
+                                                        <Mic className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-300" />
+                                                    ) : (
+                                                        <Paperclip className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-300" />
+                                                    )}
                                                     <span>[{mediaType.toUpperCase()}]: {mediaFileName || "Attached File"}</span>
                                                 </div>
                                             )}

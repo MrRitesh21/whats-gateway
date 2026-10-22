@@ -4,6 +4,7 @@ import { logger } from "@/lib/logger";
 import { userPlanAllows } from "@/lib/plans-store";
 import path from "path";
 import fs from "fs";
+import { convertToWhatsAppAudio } from "@/lib/whatsapp-audio";
 
 const checkScheduledMessages = async () => {
     try {
@@ -53,6 +54,7 @@ const checkScheduledMessages = async () => {
                             else if (ext === '.png') mimeType = 'image/png';
                             else if (ext === '.webp') mimeType = 'image/webp';
                             else if (ext === '.mp4') mimeType = 'video/mp4';
+                            else if (['.mp3', '.m4a', '.wav', '.ogg', '.opus', '.aac', '.amr'].includes(ext)) mimeType = 'audio/mp4';
                             else if (ext === '.pdf') mimeType = 'application/pdf';
 
                             if (fs.existsSync(diskPath)) {
@@ -67,6 +69,9 @@ const checkScheduledMessages = async () => {
 
                         if (type === 'video') {
                             content = { video: mediaSource, caption: msg.content, mimetype: mimeType === 'application/octet-stream' ? 'video/mp4' : mimeType };
+                        } else if (type === 'audio' || type === 'voice') {
+                            const waAudio = await convertToWhatsAppAudio(mediaSource, true);
+                            content = { audio: waAudio.buffer, mimetype: waAudio.mimetype, ptt: waAudio.ptt };
                         } else if (type === 'document') {
                             content = { document: mediaSource, caption: msg.content, fileName, mimetype: mimeType };
                         } else {

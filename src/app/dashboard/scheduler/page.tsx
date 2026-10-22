@@ -329,6 +329,7 @@ export default function SchedulerPage() {
                                         <SelectContent>
                                             <SelectItem value="image">Image</SelectItem>
                                             <SelectItem value="video">Video</SelectItem>
+                                            <SelectItem value="audio">Voice / Audio</SelectItem>
                                             <SelectItem value="document">Document</SelectItem>
                                         </SelectContent>
                                     </Select>
@@ -468,6 +469,7 @@ export default function SchedulerPage() {
                                         <SelectContent>
                                             <SelectItem value="image">Image</SelectItem>
                                             <SelectItem value="video">Video</SelectItem>
+                                            <SelectItem value="audio">Voice / Audio</SelectItem>
                                             <SelectItem value="document">Document</SelectItem>
                                         </SelectContent>
                                     </Select>

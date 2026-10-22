@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { batchResolveToPhoneJid, normalizeJid } from "@/lib/jid-utils";
 import { waManager } from "@/modules/whatsapp/manager";
 import Sticker from "wa-sticker-formatter";
+import { convertToWhatsAppAudio } from "@/lib/whatsapp-audio";
 
 export class ChatService {
     /**
@@ -393,10 +394,9 @@ export class ChatService {
             content = { image: buffer, ...messageOptions };
         } else if (type === 'video') {
              content = { video: buffer, ...messageOptions };
-        } else if (type === 'audio') {
-             content = { audio: buffer, mimetype: mimetype || 'audio/mp4', ptt: false };
-        } else if (type === 'voice') {
-             content = { audio: buffer, mimetype: mimetype || 'audio/ogg; codecs=opus', ptt: true };
+        } else if (type === 'audio' || type === 'voice') {
+             const waAudio = await convertToWhatsAppAudio(buffer, type === 'voice');
+             content = { audio: waAudio.buffer, mimetype: waAudio.mimetype, ptt: waAudio.ptt };
         } else if (type === 'document') {
              content = { document: buffer, mimetype, fileName, ...messageOptions };
         } else if (type === 'sticker') {

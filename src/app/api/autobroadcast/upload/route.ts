@@ -5,6 +5,7 @@ import { createWriteStream } from "fs";
 import { Readable } from "stream";
 import { pipeline } from "stream/promises";
 import path from "path";
+import { convertToWhatsAppAudio } from "@/lib/whatsapp-audio";
 
 export const runtime = "nodejs";
 
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
         const MAX = 50 * 1024 * 1024;
 
         let savedFilename = "";
-        let type: "image" | "video" | "document" = "document";
+        let type: "image" | "video" | "audio" | "document" = "document";
 
         if (contentType.includes("application/json")) {
             const body = await request.json().catch(() => ({}));
@@ -88,12 +89,23 @@ export async function POST(request: NextRequest) {
                 type = "image";
             } else if (mime.startsWith("video/") || [".mp4", ".mov", ".mkv", ".3gp", ".webm", ".avi"].includes(ext)) {
                 type = "video";
+            } else if (mime.startsWith("audio/") || [".mp3", ".wav", ".ogg", ".m4a", ".aac", ".opus", ".amr"].includes(ext)) {
+                type = "audio";
             } else {
                 type = "document";
             }
 
-            const safeExt = ext || (type === "image" ? ".jpg" : type === "video" ? ".mp4" : ".bin");
+            let safeExt = ext || (type === "image" ? ".jpg" : type === "video" ? ".mp4" : type === "audio" ? ".ogg" : ".bin");
             const cleanBaseName = path.basename(originalName, ext).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 40) || "file";
+
+            if (type === "audio") {
+                const waAudio = await convertToWhatsAppAudio(buffer, true);
+                buffer = waAudio.buffer;
+                finalSize = buffer.length;
+                safeExt = ".ogg";
+                mime = waAudio.mimetype;
+            }
+
             savedFilename = `broadcast_${Date.now()}_${cleanBaseName}${safeExt}`;
             const filePath = path.join(mediaDir, savedFilename);
 
@@ -133,11 +145,13 @@ export async function POST(request: NextRequest) {
                 type = "image";
             } else if (mime.startsWith("video/") || [".mp4", ".mov", ".mkv", ".3gp", ".webm", ".avi"].includes(ext)) {
                 type = "video";
+            } else if (mime.startsWith("audio/") || [".mp3", ".wav", ".ogg", ".m4a", ".aac", ".opus", ".amr"].includes(ext)) {
+                type = "audio";
             } else {
                 type = "document";
             }
 
-            const safeExt = ext || (type === "image" ? ".jpg" : type === "video" ? ".mp4" : ".bin");
+            const safeExt = ext || (type === "image" ? ".jpg" : type === "video" ? ".mp4" : type === "audio" ? ".mp3" : ".bin");
             const cleanBaseName = path.basename(originalName, ext).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 40) || "file";
             savedFilename = `broadcast_${Date.now()}_${cleanBaseName}${safeExt}`;
             const filePath = path.join(mediaDir, savedFilename);
@@ -147,6 +161,21 @@ export async function POST(request: NextRequest) {
                 Readable.fromWeb(file.stream() as any),
                 createWriteStream(filePath)
             );
+
+            if (type === "audio") {
+                const waAudio = await convertToWhatsAppAudio(filePath, true);
+                if (!savedFilename.endsWith(".ogg")) {
+                    const newFilename = `broadcast_${Date.now()}_${cleanBaseName}.ogg`;
+                    const newFilePath = path.join(mediaDir, newFilename);
+                    await fs.writeFile(newFilePath, waAudio.buffer);
+                    await fs.unlink(filePath).catch(() => {});
+                    savedFilename = newFilename;
+                } else {
+                    await fs.writeFile(filePath, waAudio.buffer);
+                }
+                finalSize = waAudio.buffer.length;
+                mime = waAudio.mimetype;
+            }
         }
 
         // Async cleanup of old temporary files

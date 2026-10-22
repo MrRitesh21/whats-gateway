@@ -1,6 +1,7 @@
 import { NextResponse, NextRequest } from "next/server";
 import path from "path";
 import { waManager } from "@/modules/whatsapp/manager";
+import { convertToWhatsAppAudio } from "@/lib/whatsapp-audio";
 import { canAccessSession, getAuthenticatedUser } from "@/lib/api-auth";
 import { antiban } from "@/modules/whatsapp/antiban";
 import { formatPhoneToJid } from "@/lib/jid-utils";
@@ -43,7 +44,7 @@ interface ActiveCampaignState {
     completedAt?: string;
     messageTemplate: string;
     mediaUrl?: string;
-    mediaType?: "image" | "video" | "document";
+    mediaType?: "image" | "video" | "audio" | "document";
     fileName?: string;
     delay: number;
     rotateEvery: number;
@@ -151,7 +152,7 @@ async function runCampaignWorker(campaign: ActiveCampaignState) {
     // Pre-resolve media descriptor ONCE to prevent memory bloat and redundant disk reads/fetches on Render
     let preloadedMediaPayload: { url: string } | Buffer | null = null;
     let preloadedMimeType = "application/octet-stream";
-    let preloadedMediaType: "image" | "video" | "document" = "document";
+    let preloadedMediaType: "image" | "video" | "audio" | "document" = "document";
     let preloadedFileName = campaign.fileName;
 
     if (campaign.mediaUrl) {
@@ -169,6 +170,7 @@ async function runCampaignWorker(campaign: ActiveCampaignState) {
                 else if (ext === ".png") preloadedMimeType = "image/png";
                 else if (ext === ".webp") preloadedMimeType = "image/webp";
                 else if (ext === ".mp4") preloadedMimeType = "video/mp4";
+                else if ([".mp3", ".m4a", ".wav", ".ogg", ".opus", ".aac", ".amr"].includes(ext)) preloadedMimeType = "audio/mp4";
                 else if (ext === ".pdf") preloadedMimeType = "application/pdf";
 
                 const fsSync = await import("fs");
@@ -193,7 +195,18 @@ async function runCampaignWorker(campaign: ActiveCampaignState) {
                 preloadedMediaPayload = Buffer.from(await res.arrayBuffer());
             }
 
-            preloadedMediaType = campaign.mediaType || (preloadedMimeType.startsWith("video") ? "video" : preloadedMimeType.startsWith("image") ? "image" : "document");
+            preloadedMediaType = campaign.mediaType || (
+                preloadedMimeType.startsWith("video") ? "video" :
+                preloadedMimeType.startsWith("audio") ? "audio" :
+                preloadedMimeType.startsWith("image") ? "image" : "document"
+            );
+
+            // Pre-transcode audio once into WhatsApp-compatible OGG Opus for 100% playable voice notes
+            if (preloadedMediaType === "audio" && preloadedMediaPayload) {
+                const waAudio = await convertToWhatsAppAudio(preloadedMediaPayload, true);
+                preloadedMediaPayload = waAudio.buffer;
+                preloadedMimeType = waAudio.mimetype;
+            }
         } catch (mediaPrepErr) {
             console.error("Failed to pre-resolve campaign media attachment:", mediaPrepErr);
         }
@@ -326,6 +339,12 @@ async function runCampaignWorker(campaign: ActiveCampaignState) {
                 if (preloadedMediaPayload) {
                     if (preloadedMediaType === "video") {
                         content = { video: preloadedMediaPayload, caption: interpolatedText, mimetype: preloadedMimeType };
+                    } else if (preloadedMediaType === "audio") {
+                        content = {
+                            audio: preloadedMediaPayload,
+                            mimetype: preloadedMimeType || "audio/ogg; codecs=opus",
+                            ptt: true,
+                        };
                     } else if (preloadedMediaType === "document") {
                         content = {
                             document: preloadedMediaPayload,
@@ -347,6 +366,11 @@ async function runCampaignWorker(campaign: ActiveCampaignState) {
                 }
 
                 await instance.socket.sendMessage(jid, content);
+
+                // If voice/audio note had an accompanying text message, send text as follow-up
+                if (preloadedMediaPayload && preloadedMediaType === "audio" && interpolatedText && interpolatedText.trim()) {
+                    await instance.socket.sendMessage(jid, { text: interpolatedText.trim() });
+                }
 
                 sentOk = true;
                 campaign.sent++;
